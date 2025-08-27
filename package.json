@@ -1,0 +1,8 @@
+{
+  "name": "NutriMotion",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/cons091/NutriMotion.git",
+  "author": "cons091 <constanzavergaraspencer@gmail.com>",
+  "license": "MIT"
+}
