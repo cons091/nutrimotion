@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "380672168202",
+    "project_id": "nutrimotion-e4184",
+    "storage_bucket": "nutrimotion-e4184.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:380672168202:android:7c30a539973b78d4fd6af3",
+        "android_client_info": {
+          "package_name": "com.constanza.nutrimotion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDIeXGy29UhFsi_fUkq0Y_sncLUdPo7SaM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
