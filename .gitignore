@@ -1,18 +1,47 @@
-﻿# Node and env
-node_modules/
-.env
-.env.* 
-npm-debug.log*
-yarn-error.log*
-# expo / react native
-.expo/
-.expo-shared/
-android/
-ios/
-web-build/
-dist/
-.build/
-# mac / editor
-.DS_Store
+﻿# Flutter/Dart
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.buildlog/
+build/
+pubspec.lock
+
+# iOS
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Pods/
+ios/Runner.xcworkspace/
+ios/Runner/GeneratedPluginRegistrant.*
+
+# Android
+.android/
+.gradle/
+local.properties
+**/build/
+
+# Web
+.dart_tool/
+web/coverage/
+
+# VS Code
 .vscode/
+
+# macOS
+*.DS_Store
+
+# Windows
+windows/Flutter/ephemeral/
+windows/runner/Debug/
+windows/runner/Release/
+
+# Linux
+linux/flutter/
+
+# JetBrains / IDE
 .idea/
+*.iml
+
+# Logs
+*.log
