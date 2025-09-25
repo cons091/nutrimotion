@@ -1,58 +1,111 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:nutrimotion/models/workout_model.dart';
-import 'package:nutrimotion/services/workout_service.dart';
 import 'package:nutrimotion/screens/training/workout_form_screen.dart';
+import 'package:nutrimotion/screens/training/workout_list_screen.dart'; // 👈 nueva pantalla para mostrar rutinas creadas
 
 class TrainingScreen extends StatelessWidget {
   const TrainingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final userId = FirebaseAuth.instance.currentUser!.uid;
-    final workoutService = WorkoutService();
-
     return Scaffold(
-      appBar: AppBar(title: const Text("Mis Rutinas")),
-      body: StreamBuilder<List<Workout>>(
-        stream: workoutService.getWorkouts(userId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final workouts = snapshot.data ?? [];
-          if (workouts.isEmpty) {
-            return const Center(child: Text("No tienes rutinas aún"));
-          }
-          return ListView.builder(
-            itemCount: workouts.length,
-            itemBuilder: (context, index) {
-              final workout = workouts[index];
-              return Card(
-                child: ListTile(
-                  title: Text(workout.title),
-                  subtitle: Text("${workout.exercises.length} ejercicios"),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () {
-                      workoutService.deleteWorkout(userId, workout.id);
-                    },
+      appBar: AppBar(title: const Text("Entrenamiento")),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Text(
+            "Empezar Entrenamiento",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+
+          // Entrenamiento vacío
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.fitness_center, color: Colors.blue),
+              title: const Text("Entrenamiento rápido (vacío)"),
+              subtitle: const Text("Comienza un entrenamiento desde cero"),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      "🚧 Desarrollo pendiente para entrenamiento vacío",
+                    ),
                   ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.green,
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const WorkoutFormScreen()),
-          );
-        },
-        child: const Icon(Icons.add),
+                );
+              },
+            ),
+          ),
+
+          // Rutinas creadas
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.list, color: Colors.green),
+              title: const Text("Usar rutina creada"),
+              subtitle: const Text("Accede a tus rutinas guardadas"),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WorkoutListScreen()),
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 30),
+          const Text(
+            "Rutinas",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+
+          // Crear rutina
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.add, color: Colors.orange),
+              title: const Text("Crear rutina"),
+              subtitle: const Text("Crea una nueva rutina personalizada"),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WorkoutFormScreen()),
+                );
+              },
+            ),
+          ),
+
+          // Ver mis rutinas
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.folder, color: Colors.purple),
+              title: const Text("Ver mis rutinas"),
+              subtitle: const Text("Edita o elimina tus rutinas"),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WorkoutListScreen()),
+                );
+              },
+            ),
+          ),
+
+          // Explorar rutinas (placeholder)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.explore, color: Colors.teal),
+              title: const Text("Explorar rutinas"),
+              subtitle: const Text("Descubre rutinas prediseñadas"),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      "🚧 Desarrollo pendiente para explorar rutinas",
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

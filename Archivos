@@ -1,5 +1,0 @@
-lib/services/auth_service.dart → manejar registro y login con Firebase.
-
-lib/models/user_model.dart → clase para guardar datos extra del usuario.
-
-lib/screens/auth/register_screen.dart → formulario de registro.
