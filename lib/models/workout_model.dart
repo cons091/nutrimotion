@@ -59,8 +59,8 @@ class Exercise {
 }
 
 class SeriesEntry {
-  final int reps;
-  final double? weight;
+  int reps;
+  double? weight;
 
   SeriesEntry({required this.reps, this.weight});
 
@@ -73,5 +73,10 @@ class SeriesEntry {
       reps: map['reps'] ?? 0,
       weight: map['weight'] != null ? (map['weight'] as num).toDouble() : null,
     );
+  }
+
+  /// Nuevo: para actualizar reps o peso sin crear todo manualmente
+  SeriesEntry copyWith({int? reps, double? weight}) {
+    return SeriesEntry(reps: reps ?? this.reps, weight: weight ?? this.weight);
   }
 }

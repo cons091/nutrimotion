@@ -152,7 +152,7 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
             widget.existingWorkout?.id ??
             DateTime.now().millisecondsSinceEpoch.toString(),
         title: _titleController.text,
-        day: _selectedDay, // ✅ usamos el dropdown
+        day: _selectedDay,
         exercises: _exercises,
       );
 
@@ -165,7 +165,8 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
         workoutService.addWorkout(userId, workout);
       }
 
-      Navigator.pop(context);
+      // 👇 Pop y devolver workout actualizado
+      Navigator.pop(context, workout);
     }
   }
 
@@ -216,56 +217,28 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
               const SizedBox(height: 20),
 
               // Lista de ejercicios añadidos
+              // Lista de ejercicios añadidos
               Expanded(
                 child: ListView.builder(
                   itemCount: _exercises.length,
                   itemBuilder: (context, index) {
                     final ex = _exercises[index];
                     return Card(
-                      child: ListTile(
-                        title: Text(ex.name),
-                        subtitle: Column(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: ex.series.asMap().entries.map((entry) {
-                            final i = entry.key;
-                            final s = entry.value;
-
-                            return Row(
+                          children: [
+                            // Nombre del ejercicio y botón eliminar ejercicio
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text("Serie ${i + 1}: "),
-                                Expanded(
-                                  child: TextFormField(
-                                    initialValue: s.reps.toString(),
-                                    decoration: const InputDecoration(
-                                      labelText: "Reps",
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        ex.series[i] = SeriesEntry(
-                                          reps: int.tryParse(value) ?? s.reps,
-                                          weight: s.weight,
-                                        );
-                                      });
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: TextFormField(
-                                    initialValue: s.weight?.toString() ?? '',
-                                    decoration: const InputDecoration(
-                                      labelText: "Peso (kg)",
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        ex.series[i] = SeriesEntry(
-                                          reps: s.reps,
-                                          weight: double.tryParse(value),
-                                        );
-                                      });
-                                    },
+                                Text(
+                                  ex.name,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 IconButton(
@@ -275,13 +248,110 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                   ),
                                   onPressed: () {
                                     setState(() {
-                                      ex.series.removeAt(i);
+                                      _exercises.removeAt(index);
                                     });
                                   },
                                 ),
                               ],
-                            );
-                          }).toList(),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Series del ejercicio
+                            Column(
+                              children: ex.series.asMap().entries.map((entry) {
+                                final i = entry.key;
+                                final s = entry.value;
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Text("Serie ${i + 1}: "),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: TextFormField(
+                                          initialValue: s.reps.toString(),
+                                          decoration: const InputDecoration(
+                                            labelText: "Reps",
+                                            border: OutlineInputBorder(),
+                                            contentPadding:
+                                                EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 4,
+                                                ),
+                                          ),
+                                          keyboardType: TextInputType.number,
+                                          onChanged: (value) {
+                                            setState(() {
+                                              ex.series[i] = SeriesEntry(
+                                                reps:
+                                                    int.tryParse(value) ??
+                                                    s.reps,
+                                                weight: s.weight,
+                                              );
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: TextFormField(
+                                          initialValue:
+                                              s.weight?.toString() ?? '',
+                                          decoration: const InputDecoration(
+                                            labelText: "Peso (kg)",
+                                            border: OutlineInputBorder(),
+                                            contentPadding:
+                                                EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 4,
+                                                ),
+                                          ),
+                                          keyboardType: TextInputType.number,
+                                          onChanged: (value) {
+                                            setState(() {
+                                              ex.series[i] = SeriesEntry(
+                                                reps: s.reps,
+                                                weight: double.tryParse(value),
+                                              );
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.delete,
+                                          color: Colors.red,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            ex.series.removeAt(i);
+                                          });
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+
+                            // Botón añadir serie
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    ex.series.add(
+                                      SeriesEntry(reps: 0, weight: 0),
+                                    );
+                                  });
+                                },
+                                icon: const Icon(Icons.add),
+                                label: const Text("Añadir serie"),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );

@@ -2,9 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:nutrimotion/models/workout_model.dart';
 import 'package:nutrimotion/screens/training/workout_form_screen.dart';
 
-class WorkoutDetailScreen extends StatelessWidget {
+class WorkoutDetailScreen extends StatefulWidget {
   final Workout workout;
   const WorkoutDetailScreen({super.key, required this.workout});
+
+  @override
+  State<WorkoutDetailScreen> createState() => _WorkoutDetailScreenState();
+}
+
+class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
+  late Workout workout;
+
+  @override
+  void initState() {
+    super.initState();
+    workout = widget.workout;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,35 +99,24 @@ class WorkoutDetailScreen extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton.extended(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => WorkoutFormScreen(existingWorkout: workout),
-                ),
-              );
-            },
-            label: const Text("Editar rutina"),
-            icon: const Icon(Icons.edit),
-            backgroundColor: Colors.orange,
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton.extended(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Rutina completada 💪")),
-              );
-              Navigator.pop(context);
-            },
-            label: const Text("Marcar como completada"),
-            icon: const Icon(Icons.check),
-            backgroundColor: Colors.green,
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final updatedWorkout = await Navigator.push<Workout>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => WorkoutFormScreen(existingWorkout: workout),
+            ),
+          );
+
+          if (updatedWorkout != null) {
+            setState(() {
+              workout = updatedWorkout;
+            });
+          }
+        },
+        label: const Text("Editar rutina"),
+        icon: const Icon(Icons.edit),
+        backgroundColor: Colors.orange,
       ),
     );
   }

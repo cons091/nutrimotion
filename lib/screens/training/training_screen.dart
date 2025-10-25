@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nutrimotion/screens/training/workout_form_screen.dart';
-import 'package:nutrimotion/screens/training/workout_list_screen.dart'; // 👈 nueva pantalla para mostrar rutinas creadas
+import 'package:nutrimotion/screens/training/workout_list_screen.dart';
+import 'package:nutrimotion/screens/training/empty_workout_screen.dart';
 
 class TrainingScreen extends StatelessWidget {
   const TrainingScreen({super.key});
@@ -25,12 +26,9 @@ class TrainingScreen extends StatelessWidget {
               title: const Text("Entrenamiento rápido (vacío)"),
               subtitle: const Text("Comienza un entrenamiento desde cero"),
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "🚧 Desarrollo pendiente para entrenamiento vacío",
-                    ),
-                  ),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const EmptyWorkoutScreen()),
                 );
               },
             ),
@@ -68,21 +66,6 @@ class TrainingScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const WorkoutFormScreen()),
-                );
-              },
-            ),
-          ),
-
-          // Ver mis rutinas
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.folder, color: Colors.purple),
-              title: const Text("Ver mis rutinas"),
-              subtitle: const Text("Edita o elimina tus rutinas"),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WorkoutListScreen()),
                 );
               },
             ),
