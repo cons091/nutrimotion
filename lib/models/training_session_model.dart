@@ -4,15 +4,17 @@ import 'workout_model.dart';
 class TrainingSession {
   final String id;
   final String userId;
+  final String title;
   final DateTime date;
-  final Duration duration;
+  final Duration duration; // en memoria como Duration
   final List<Exercise> exercises;
-  final String? workoutTemplateId; // si viene de una rutina guardada
+  final String? workoutTemplateId;
   final String? notes;
 
   TrainingSession({
     required this.id,
     required this.userId,
+    required this.title,
     required this.date,
     required this.duration,
     required this.exercises,
@@ -23,8 +25,10 @@ class TrainingSession {
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
-      'date': Timestamp.fromDate(date),
+      'title': title,
+      // Guardamos duration en segundos (int) para fácil query
       'duration': duration.inSeconds,
+      'date': Timestamp.fromDate(date),
       'exercises': exercises.map((e) => e.toMap()).toList(),
       'workoutTemplateId': workoutTemplateId,
       'notes': notes,
@@ -34,14 +38,15 @@ class TrainingSession {
   static TrainingSession fromMap(String id, Map<String, dynamic> map) {
     return TrainingSession(
       id: id,
-      userId: map['userId'],
+      userId: map['userId'] as String,
+      title: (map['title'] ?? '') as String,
       date: (map['date'] as Timestamp).toDate(),
-      duration: Duration(seconds: map['duration'] ?? 0),
+      duration: Duration(seconds: (map['duration'] ?? 0) as int),
       exercises: (map['exercises'] as List<dynamic>)
           .map((e) => Exercise.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
-      workoutTemplateId: map['workoutTemplateId'],
-      notes: map['notes'],
+      workoutTemplateId: map['workoutTemplateId'] as String?,
+      notes: map['notes'] as String?,
     );
   }
 }

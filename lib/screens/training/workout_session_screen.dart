@@ -1,207 +1,279 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nutrimotion/models/workout_model.dart';
+import 'package:nutrimotion/screens/training/exercise_picker_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:nutrimotion/services/training_session_service.dart';
 
 class WorkoutSessionScreen extends StatefulWidget {
-  final Workout workout;
-  final bool isReviewMode; // para diferenciar entre ver rutina o entrenar
-
-  const WorkoutSessionScreen({
-    super.key,
-    required this.workout,
-    this.isReviewMode = false,
-  });
+  final Workout? workout;
+  const WorkoutSessionScreen({super.key, this.workout});
 
   @override
   State<WorkoutSessionScreen> createState() => _WorkoutSessionScreenState();
 }
 
 class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
-  late Workout _sessionWorkout;
-  Timer? _timer;
-  int _elapsedSeconds = 0;
+  final _stopwatch = Stopwatch();
+  final _trainingService = TrainingSessionService();
+
+  late List<Exercise> _exercises;
+  late String _title;
 
   @override
   void initState() {
     super.initState();
-
-    // Copia de la rutina para no modificar la original
-    _sessionWorkout = Workout(
-      id: widget.workout.id,
-      title: widget.workout.title,
-      day: widget.workout.day,
-      exercises: widget.workout.exercises
-          .map(
-            (ex) => Exercise(
-              name: ex.name,
-              series: ex.series
-                  .map((s) => SeriesEntry(reps: s.reps, weight: s.weight))
-                  .toList(),
-            ),
-          )
-          .toList(),
-    );
-
-    // ✅ Si no es modo revisión, iniciar cronómetro automáticamente
-    if (!widget.isReviewMode) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        setState(() {
-          _elapsedSeconds++;
-        });
-      });
-    }
+    _exercises = widget.workout?.exercises ?? [];
+    _title = widget.workout?.title ?? "Entrenamiento vacío";
+    _stopwatch.start();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _stopwatch.stop();
     super.dispose();
   }
 
-  void _finishSession() {
-    _timer?.cancel(); // detener cronómetro
-    showDialog(
+  Future<void> _addExercise() async {
+    String selectedGroup = "Piernas";
+
+    // 👇 Paso 1: elegir grupo muscular (como en crear rutina)
+    await showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Entrenamiento completado 💪"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "Has completado ${_sessionWorkout.exercises.length} ejercicios.",
-            ),
-            const SizedBox(height: 8),
-            Text("Tiempo total: ${_formatTime(_elapsedSeconds)}"),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context); // cerrar diálogo
-              Navigator.pop(context); // volver a la pantalla principal
+      builder: (_) {
+        return AlertDialog(
+          title: const Text("Selecciona grupo muscular"),
+          content: StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return DropdownButton<String>(
+                value: selectedGroup,
+                items: const [
+                  DropdownMenuItem(value: "Piernas", child: Text("Piernas")),
+                  DropdownMenuItem(value: "Espalda", child: Text("Espalda")),
+                  DropdownMenuItem(value: "Pecho", child: Text("Pecho")),
+                  DropdownMenuItem(value: "Hombros", child: Text("Hombros")),
+                  DropdownMenuItem(value: "Brazos", child: Text("Brazos")),
+                  DropdownMenuItem(value: "FullBody", child: Text("Full Body")),
+                ],
+                onChanged: (value) {
+                  setStateDialog(() => selectedGroup = value!);
+                },
+              );
             },
-            child: const Text("Cerrar"),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, selectedGroup),
+              child: const Text("Seleccionar"),
+            ),
+          ],
+        );
+      },
+    ).then((result) async {
+      if (result == null) return;
+
+      // 👇 Paso 2: elegir ejercicio (igual que en rutinas normales)
+      final exerciseName = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ExercisePickerScreen(group: result)),
+      );
+
+      if (exerciseName == null) return;
+
+      // 👇 Paso 3: añadir series y pesos
+      List<TextEditingController> repsControllers = [TextEditingController()];
+      List<TextEditingController> weightControllers = [TextEditingController()];
+
+      await showDialog(
+        context: context,
+        builder: (_) {
+          return StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return AlertDialog(
+                title: Text("Configurar $exerciseName"),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Column(
+                        children: List.generate(repsControllers.length, (i) {
+                          return Row(
+                            children: [
+                              Text("Serie ${i + 1}: "),
+                              Expanded(
+                                child: TextField(
+                                  controller: repsControllers[i],
+                                  decoration: const InputDecoration(
+                                    labelText: "Reps",
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: weightControllers[i],
+                                  decoration: const InputDecoration(
+                                    labelText: "Peso (kg)",
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () {
+                                  setStateDialog(() {
+                                    repsControllers.removeAt(i);
+                                    weightControllers.removeAt(i);
+                                  });
+                                },
+                              ),
+                            ],
+                          );
+                        }),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          setStateDialog(() {
+                            repsControllers.add(TextEditingController());
+                            weightControllers.add(TextEditingController());
+                          });
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text("Añadir serie"),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Cancelar"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      final series = <SeriesEntry>[];
+                      for (var i = 0; i < repsControllers.length; i++) {
+                        series.add(
+                          SeriesEntry(
+                            reps: int.tryParse(repsControllers[i].text) ?? 0,
+                            weight: double.tryParse(weightControllers[i].text),
+                          ),
+                        );
+                      }
+
+                      setState(() {
+                        _exercises.add(
+                          Exercise(name: exerciseName, series: series),
+                        );
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: const Text("Añadir"),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    });
   }
 
-  String _formatTime(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-    return "${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}";
+  Future<void> _finishWorkout() async {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    final duration = _stopwatch.elapsed;
+
+    await _trainingService.saveSession(
+      userId: userId,
+      title: _title,
+      exercises: _exercises,
+      duration: duration,
+    );
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Entrenamiento guardado ✅")));
+    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
+    final elapsed =
+        "${_stopwatch.elapsed.inMinutes.toString().padLeft(2, '0')}:${(_stopwatch.elapsed.inSeconds % 60).toString().padLeft(2, '0')}";
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Entrenando: ${_sessionWorkout.title}"),
-        actions: [
-          if (!widget.isReviewMode)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.access_time, color: Colors.white),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatTime(_elapsedSeconds),
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+      appBar: AppBar(title: Text(_title)),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: ListView(
-          children: _sessionWorkout.exercises.map((exercise) {
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      exercise.name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+        child: Column(
+          children: [
+            Text(
+              "⏱ Tiempo: $elapsed",
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: _exercises.isEmpty
+                  ? const Center(
+                      child: Text(
+                        "Aún no has añadido ejercicios",
+                        style: TextStyle(fontSize: 16),
                       ),
+                    )
+                  : ListView.builder(
+                      itemCount: _exercises.length,
+                      itemBuilder: (context, index) {
+                        final ex = _exercises[index];
+                        return Card(
+                          child: ListTile(
+                            title: Text(ex.name),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: ex.series
+                                  .asMap()
+                                  .entries
+                                  .map(
+                                    (e) => Text(
+                                      "Serie ${e.key + 1}: ${e.value.reps} reps - ${e.value.weight ?? 0} kg",
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                setState(() => _exercises.removeAt(index));
+                              },
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 8),
-                    ...exercise.series.asMap().entries.map((entry) {
-                      final seriesIndex = entry.key;
-                      final series = entry.value;
-                      return Row(
-                        children: [
-                          Text("Serie ${seriesIndex + 1}: "),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextFormField(
-                              initialValue: series.reps.toString(),
-                              decoration: const InputDecoration(
-                                labelText: "Reps",
-                              ),
-                              keyboardType: TextInputType.number,
-                              readOnly: widget.isReviewMode,
-                              onChanged: (value) {
-                                if (!widget.isReviewMode) {
-                                  setState(() {
-                                    series.reps =
-                                        int.tryParse(value) ?? series.reps;
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextFormField(
-                              initialValue: series.weight?.toString() ?? '',
-                              decoration: const InputDecoration(
-                                labelText: "Peso (kg)",
-                              ),
-                              keyboardType: TextInputType.number,
-                              readOnly: widget.isReviewMode,
-                              onChanged: (value) {
-                                if (!widget.isReviewMode) {
-                                  setState(() {
-                                    series.weight =
-                                        double.tryParse(value) ?? series.weight;
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
-                  ],
-                ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _addExercise,
+              icon: const Icon(Icons.add),
+              label: const Text("Añadir Ejercicio"),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: _finishWorkout,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                minimumSize: const Size(double.infinity, 50),
               ),
-            );
-          }).toList(),
+              child: const Text("Finalizar Entrenamiento"),
+            ),
+          ],
         ),
       ),
-      bottomNavigationBar: widget.isReviewMode
-          ? null
-          : Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: ElevatedButton.icon(
-                onPressed: _finishSession,
-                icon: const Icon(Icons.stop),
-                label: const Text("Finalizar entrenamiento"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  minimumSize: const Size(double.infinity, 50),
-                ),
-              ),
-            ),
     );
   }
 }

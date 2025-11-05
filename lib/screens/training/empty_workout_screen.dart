@@ -33,13 +33,61 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
   }
 
   void _addExercise() async {
-    final group = "FullBody"; // de momento dejamos esto fijo
-    final exerciseName = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ExercisePickerScreen(group: group)),
+    // Paso 1: seleccionar grupo muscular
+    final selectedGroup = await showDialog<String>(
+      context: context,
+      builder: (_) {
+        String? _selected = "Piernas"; // valor inicial
+
+        return AlertDialog(
+          title: const Text("Selecciona un grupo muscular"),
+          content: StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return DropdownButtonFormField<String>(
+                value: _selected,
+                decoration: const InputDecoration(
+                  labelText: "Grupo muscular",
+                  prefixIcon: Icon(Icons.fitness_center),
+                ),
+                items: const [
+                  DropdownMenuItem(value: "Piernas", child: Text("Piernas")),
+                  DropdownMenuItem(value: "Espalda", child: Text("Espalda")),
+                  DropdownMenuItem(value: "Pecho", child: Text("Pecho")),
+                  DropdownMenuItem(value: "Hombros", child: Text("Hombros")),
+                  DropdownMenuItem(value: "Brazos", child: Text("Brazos")),
+                  DropdownMenuItem(value: "FullBody", child: Text("Full Body")),
+                ],
+                onChanged: (value) => setStateDialog(() => _selected = value),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, _selected),
+              child: const Text("Siguiente"),
+            ),
+          ],
+        );
+      },
     );
+
+    if (selectedGroup == null) return;
+
+    // Paso 2: seleccionar ejercicio del grupo elegido
+    final exerciseName = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExercisePickerScreen(group: selectedGroup),
+      ),
+    );
+
     if (exerciseName == null) return;
 
+    // Paso 3: ingresar series, reps, peso
     List<TextEditingController> repsControllers = [TextEditingController()];
     List<TextEditingController> weightControllers = [TextEditingController()];
 
@@ -49,49 +97,52 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              title: Text("Agregar $exerciseName"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Column(
-                    children: List.generate(repsControllers.length, (i) {
-                      return Row(
-                        children: [
-                          Text("Serie ${i + 1}: "),
-                          Expanded(
-                            child: TextField(
-                              controller: repsControllers[i],
-                              decoration: const InputDecoration(
-                                labelText: "Reps",
+              title: Text("Configurar $exerciseName"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("Series"),
+                    Column(
+                      children: List.generate(repsControllers.length, (i) {
+                        return Row(
+                          children: [
+                            Text("Serie ${i + 1}: "),
+                            Expanded(
+                              child: TextField(
+                                controller: repsControllers[i],
+                                decoration: const InputDecoration(
+                                  labelText: "Reps",
+                                ),
+                                keyboardType: TextInputType.number,
                               ),
-                              keyboardType: TextInputType.number,
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: weightControllers[i],
-                              decoration: const InputDecoration(
-                                labelText: "Peso (kg)",
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: weightControllers[i],
+                                decoration: const InputDecoration(
+                                  labelText: "Peso (kg)",
+                                ),
+                                keyboardType: TextInputType.number,
                               ),
-                              keyboardType: TextInputType.number,
                             ),
-                          ),
-                        ],
-                      );
-                    }),
-                  ),
-                  TextButton.icon(
-                    onPressed: () {
-                      setStateDialog(() {
-                        repsControllers.add(TextEditingController());
-                        weightControllers.add(TextEditingController());
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text("Añadir serie"),
-                  ),
-                ],
+                          ],
+                        );
+                      }),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        setStateDialog(() {
+                          repsControllers.add(TextEditingController());
+                          weightControllers.add(TextEditingController());
+                        });
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text("Añadir serie"),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -109,14 +160,16 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
                         ),
                       );
                     }
+
                     setState(() {
                       _exercises.add(
                         Exercise(name: exerciseName, series: series),
                       );
                     });
+
                     Navigator.pop(context);
                   },
-                  child: const Text("Agregar"),
+                  child: const Text("Añadir"),
                 ),
               ],
             );
@@ -134,6 +187,7 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
     final session = TrainingSession(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       userId: userId,
+      title: "Entrenamiento libre", // ✅ nuevo campo requerido
       date: DateTime.now(),
       duration: duration,
       exercises: _exercises,
