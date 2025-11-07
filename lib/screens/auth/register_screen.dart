@@ -14,7 +14,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _pesoController = TextEditingController();
   final _alturaController = TextEditingController();
-  String _objetivo = "Mantenimiento"; // valor por defecto
+  final _edadController = TextEditingController();
+  String _sexo = "Mujer";
+  String _actividad = "Sedentario";
+  String _objetivo = "Mantenimiento";
 
   final _authService = AuthService();
 
@@ -24,6 +27,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _pesoController.dispose();
     _alturaController.dispose();
+    _edadController.dispose();
     super.dispose();
   }
 
@@ -34,6 +38,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passwordController.text.trim(),
         peso: double.parse(_pesoController.text.trim()),
         altura: double.parse(_alturaController.text.trim()),
+        edad: int.parse(_edadController.text.trim()),
+        sexo: _sexo,
+        actividad: _actividad,
         objetivo: _objetivo,
       );
 
@@ -90,6 +97,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 12),
 
               TextFormField(
+                controller: _edadController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: "Edad",
+                  prefixIcon: Icon(Icons.cake),
+                ),
+                validator: (value) =>
+                    value!.isNotEmpty ? null : "Ingrese su edad",
+              ),
+              const SizedBox(height: 12),
+
+              DropdownButtonFormField<String>(
+                value: _sexo,
+                decoration: const InputDecoration(
+                  labelText: "Sexo",
+                  prefixIcon: Icon(Icons.person),
+                ),
+                items: const [
+                  DropdownMenuItem(value: "Hombre", child: Text("Hombre")),
+                  DropdownMenuItem(value: "Mujer", child: Text("Mujer")),
+                ],
+                onChanged: (value) => setState(() => _sexo = value!),
+              ),
+              const SizedBox(height: 12),
+
+              TextFormField(
                 controller: _pesoController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
@@ -114,6 +147,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
+                value: _actividad,
+                decoration: const InputDecoration(
+                  labelText: "Nivel de actividad",
+                  prefixIcon: Icon(Icons.directions_run),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: "Sedentario",
+                    child: Text("Sedentario"),
+                  ),
+                  DropdownMenuItem(
+                    value: "Ligero",
+                    child: Text("Actividad ligera (1-3x/sem)"),
+                  ),
+                  DropdownMenuItem(
+                    value: "Moderado",
+                    child: Text("Actividad moderada (3-5x/sem)"),
+                  ),
+                  DropdownMenuItem(
+                    value: "Alto",
+                    child: Text("Actividad alta (6-7x/sem)"),
+                  ),
+                  DropdownMenuItem(
+                    value: "Muy alto",
+                    child: Text("Actividad muy alta (trabajo físico)"),
+                  ),
+                ],
+                onChanged: (value) => setState(() => _actividad = value!),
+              ),
+              const SizedBox(height: 12),
+
+              DropdownButtonFormField<String>(
                 value: _objetivo,
                 decoration: const InputDecoration(
                   labelText: "Objetivo",
@@ -129,15 +194,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Text("Mantenimiento"),
                   ),
                   DropdownMenuItem(
+                    value: "Recomposición",
+                    child: Text("Recomposición corporal"),
+                  ),
+                  DropdownMenuItem(
                     value: "Superávit",
                     child: Text("Superávit calórico"),
                   ),
                 ],
-                onChanged: (value) {
-                  setState(() {
-                    _objetivo = value!;
-                  });
-                },
+                onChanged: (value) => setState(() => _objetivo = value!),
               ),
               const SizedBox(height: 20),
 

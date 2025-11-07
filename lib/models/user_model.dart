@@ -3,6 +3,9 @@ class AppUser {
   final String email;
   final double? peso;
   final double? altura;
+  final int? edad;
+  final String? sexo; // "Hombre" o "Mujer"
+  final String? actividad; // nivel de actividad física
   final String? objetivo; // déficit, mantenimiento, superávit
 
   AppUser({
@@ -10,6 +13,9 @@ class AppUser {
     required this.email,
     this.peso,
     this.altura,
+    this.edad,
+    this.sexo,
+    this.actividad,
     this.objetivo,
   });
 
@@ -19,6 +25,9 @@ class AppUser {
       "email": email,
       "peso": peso,
       "altura": altura,
+      "edad": edad,
+      "sexo": sexo,
+      "actividad": actividad,
       "objetivo": objetivo,
     };
   }
@@ -29,6 +38,9 @@ class AppUser {
       email: map["email"],
       peso: map["peso"]?.toDouble(),
       altura: map["altura"]?.toDouble(),
+      edad: map["edad"],
+      sexo: map["sexo"],
+      actividad: map["actividad"],
       objetivo: map["objetivo"],
     );
   }

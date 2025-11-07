@@ -7,36 +7,37 @@ class AuthService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // Registro
-  Future<User?> registerUser({
+  Future<AppUser?> registerUser({
     required String email,
     required String password,
     required double peso,
     required double altura,
+    required int edad,
+    required String sexo,
+    required String actividad,
     required String objetivo,
   }) async {
     try {
-      UserCredential cred = await _auth.createUserWithEmailAndPassword(
+      final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      User? user = cred.user;
+      final user = AppUser(
+        uid: credential.user!.uid,
+        email: email,
+        peso: peso,
+        altura: altura,
+        edad: edad,
+        sexo: sexo,
+        actividad: actividad,
+        objetivo: objetivo,
+      );
 
-      if (user != null) {
-        AppUser appUser = AppUser(
-          uid: user.uid,
-          email: user.email!,
-          peso: peso,
-          altura: altura,
-          objetivo: objetivo,
-        );
-
-        await _db.collection("users").doc(user.uid).set(appUser.toMap());
-      }
-
+      await _db.collection("users").doc(user.uid).set(user.toMap());
       return user;
     } catch (e) {
-      print("Error en register: $e");
+      print("Error al registrar usuario: $e");
       return null;
     }
   }

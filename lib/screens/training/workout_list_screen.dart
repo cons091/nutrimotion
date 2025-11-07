@@ -22,7 +22,7 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
     final userId = FirebaseAuth.instance.currentUser!.uid;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Mis Rutinas")),
+      appBar: AppBar(title: const Text("Entrenamientos")),
       body: StreamBuilder<List<Workout>>(
         stream: workoutService.getWorkouts(userId),
         builder: (context, snapshot) {
@@ -32,14 +32,13 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
 
           final workoutsFromStream = snapshot.data ?? [];
 
-          // Mantener la lista local sincronizada
           if (_workouts.isEmpty ||
               _workouts.length != workoutsFromStream.length) {
             _workouts = workoutsFromStream;
           }
 
           if (_workouts.isEmpty) {
-            return const Center(child: Text("No tienes rutinas aún"));
+            return const Center(child: Text("No tienes rutinas guardadas."));
           }
 
           return ListView.builder(
@@ -73,8 +72,10 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) =>
-                                  WorkoutSessionScreen(workout: workout),
+                              builder: (_) => WorkoutSessionScreen(
+                                initialWorkout: workout,
+                                startAutomatically: true,
+                              ),
                             ),
                           );
                         },
@@ -93,21 +94,45 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.green,
-        onPressed: () async {
-          final newWorkout = await Navigator.push<Workout>(
-            context,
-            MaterialPageRoute(builder: (_) => const WorkoutFormScreen()),
-          );
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 🟢 Entrenamiento vacío
+          FloatingActionButton.extended(
+            backgroundColor: Colors.orange,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const WorkoutSessionScreen(startAutomatically: true),
+                ),
+              );
+            },
+            icon: const Icon(Icons.fitness_center),
+            label: const Text("Entrenamiento vacío"),
+          ),
+          const SizedBox(height: 10),
 
-          if (newWorkout != null) {
-            setState(() {
-              _workouts.add(newWorkout);
-            });
-          }
-        },
-        child: const Icon(Icons.add),
+          // ➕ Crear rutina
+          FloatingActionButton.extended(
+            backgroundColor: Colors.green,
+            onPressed: () async {
+              final newWorkout = await Navigator.push<Workout>(
+                context,
+                MaterialPageRoute(builder: (_) => const WorkoutFormScreen()),
+              );
+
+              if (newWorkout != null) {
+                setState(() {
+                  _workouts.add(newWorkout);
+                });
+              }
+            },
+            icon: const Icon(Icons.add),
+            label: const Text("Nueva rutina"),
+          ),
+        ],
       ),
     );
   }

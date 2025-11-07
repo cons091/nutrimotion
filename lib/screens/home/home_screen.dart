@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nutrimotion/screens/training/training_screen.dart';
 import 'package:nutrimotion/screens/nutrition/nutrition_screen.dart';
 import 'package:nutrimotion/screens/progress/progress_screen.dart';
-import 'package:nutrimotion/screens/profile/profile_screen.dart';
+import 'package:nutrimotion/screens/profile/profile_screen.dart'; // ✅ asegúrate de tener este archivo
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,7 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
     TrainingScreen(),
     NutritionScreen(),
     ProgressScreen(),
-    ProfileScreen(),
+    ProfileScreen(), // ✅ Perfil con datos del usuario desde Firestore
   ];
 
   void _onItemTapped(int index) {
