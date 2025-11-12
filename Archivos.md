@@ -21,7 +21,10 @@
         - progress_screen.dart = 
     - training
         - training_screen.dart = 
-        - workout_form_screen.dart = 
+        - workout_list_screen: Lista de rutinas, permite crear, eliminar y abrir rutinas.
+        - workout_detail_screen: Visualiza una rutina, permite editarla.
+        - workout_form_screen.dart = Crear o editar una rutina, añadir/eliminar ejercicios, editar series.
+        - workout_session_screen: Iniciar entrenamiento, registrar series y pesos, luego guardar.
 ### Logica de Firebase
 4. lib/services:
     - auth_service.dart = aquí va login/register con FirebaseAuth

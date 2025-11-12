@@ -79,19 +79,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
     });
   }
 
-  /// Filtra los ejercicios únicos realizados según la zona seleccionada
+  /// Devuelve todos los ejercicios del grupo seleccionado
   List<String> get _availableExercises {
     if (_selectedGroup == null) return [];
-    final exercises = <String>{};
     final targetList = _groupExercises[_selectedGroup!] ?? [];
-
-    for (final session in _sessions) {
-      for (final ex in session.exercises) {
-        if (targetList.contains(ex.name)) exercises.add(ex.name);
-      }
-    }
-
-    return exercises.toList()..sort();
+    return targetList; // ahora no filtramos por sesiones
   }
 
   /// Obtiene los datos del ejercicio seleccionado para graficar

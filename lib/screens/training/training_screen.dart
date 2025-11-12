@@ -71,6 +71,21 @@ class TrainingScreen extends StatelessWidget {
             ),
           ),
 
+          // Ver mis rutinas
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.folder, color: Colors.purple),
+              title: const Text("Ver mis rutinas"),
+              subtitle: const Text("Edita o elimina tus rutinas"),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WorkoutListScreen()),
+                );
+              },
+            ),
+          ),
+
           // Explorar rutinas (placeholder)
           Card(
             child: ListTile(

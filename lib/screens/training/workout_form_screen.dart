@@ -18,21 +18,18 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
   late TextEditingController _titleController;
 
   List<Exercise> _exercises = [];
-  String _selectedDay = "Piernas"; // 👈 valor por defecto para el dropdown
+  String _selectedDay = "Piernas";
 
   @override
   void initState() {
     super.initState();
-
     if (widget.existingWorkout != null) {
-      // Si viene de edición, precargamos datos
       _titleController = TextEditingController(
         text: widget.existingWorkout!.title,
       );
       _selectedDay = widget.existingWorkout!.day;
       _exercises = List.from(widget.existingWorkout!.exercises);
     } else {
-      // Nuevo workout
       _titleController = TextEditingController();
       _exercises = [];
     }
@@ -118,13 +115,28 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                 ElevatedButton(
                   onPressed: () {
                     final series = <SeriesEntry>[];
+                    bool hasZero = false;
+
                     for (var i = 0; i < repsControllers.length; i++) {
-                      series.add(
-                        SeriesEntry(
-                          reps: int.tryParse(repsControllers[i].text) ?? 0,
-                          weight: double.tryParse(weightControllers[i].text),
+                      final reps = int.tryParse(repsControllers[i].text) ?? 0;
+                      final weight =
+                          double.tryParse(weightControllers[i].text) ?? 0;
+                      if (reps <= 0 || weight <= 0) {
+                        hasZero = true;
+                        break;
+                      }
+                      series.add(SeriesEntry(reps: reps, weight: weight));
+                    }
+
+                    if (hasZero) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "❌ No se permiten valores 0 en series o peso.",
+                          ),
                         ),
                       );
+                      return;
                     }
 
                     setState(() {
@@ -146,28 +158,41 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
   }
 
   void _saveWorkout() {
-    if (_formKey.currentState!.validate()) {
-      final workout = Workout(
-        id:
-            widget.existingWorkout?.id ??
-            DateTime.now().millisecondsSinceEpoch.toString(),
-        title: _titleController.text,
-        day: _selectedDay,
-        exercises: _exercises,
-      );
+    if (!_formKey.currentState!.validate()) return;
 
-      final userId = FirebaseAuth.instance.currentUser!.uid;
-      final workoutService = WorkoutService();
-
-      if (widget.existingWorkout != null) {
-        workoutService.updateWorkout(userId, workout);
-      } else {
-        workoutService.addWorkout(userId, workout);
+    // ✅ Validar que no haya valores 0 en los ejercicios existentes
+    for (final ex in _exercises) {
+      for (final s in ex.series) {
+        if (s.reps <= 0 || (s.weight ?? 0) <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("❌ '${ex.name}' tiene valores 0 en sus series."),
+            ),
+          );
+          return;
+        }
       }
-
-      // 👇 Pop y devolver workout actualizado
-      Navigator.pop(context, workout);
     }
+
+    final workout = Workout(
+      id:
+          widget.existingWorkout?.id ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
+      title: _titleController.text,
+      day: _selectedDay,
+      exercises: _exercises,
+    );
+
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    final workoutService = WorkoutService();
+
+    if (widget.existingWorkout != null) {
+      workoutService.updateWorkout(userId, workout);
+    } else {
+      workoutService.addWorkout(userId, workout);
+    }
+
+    Navigator.pop(context, workout);
   }
 
   @override
@@ -193,7 +218,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Dropdown día/grupo muscular
               DropdownButtonFormField<String>(
                 value: _selectedDay,
                 decoration: const InputDecoration(
@@ -208,16 +232,10 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                   DropdownMenuItem(value: "Brazos", child: Text("Brazos")),
                   DropdownMenuItem(value: "FullBody", child: Text("Full Body")),
                 ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedDay = value!;
-                  });
-                },
+                onChanged: (value) => setState(() => _selectedDay = value!),
               ),
               const SizedBox(height: 20),
 
-              // Lista de ejercicios añadidos
-              // Lista de ejercicios añadidos
               Expanded(
                 child: ListView.builder(
                   itemCount: _exercises.length,
@@ -230,7 +248,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Nombre del ejercicio y botón eliminar ejercicio
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -256,7 +273,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                             ),
                             const SizedBox(height: 8),
 
-                            // Series del ejercicio
                             Column(
                               children: ex.series.asMap().entries.map((entry) {
                                 final i = entry.key;
@@ -283,11 +299,11 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                           ),
                                           keyboardType: TextInputType.number,
                                           onChanged: (value) {
+                                            final parsed =
+                                                int.tryParse(value) ?? 0;
                                             setState(() {
                                               ex.series[i] = SeriesEntry(
-                                                reps:
-                                                    int.tryParse(value) ??
-                                                    s.reps,
+                                                reps: parsed,
                                                 weight: s.weight,
                                               );
                                             });
@@ -310,10 +326,12 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                           ),
                                           keyboardType: TextInputType.number,
                                           onChanged: (value) {
+                                            final parsed =
+                                                double.tryParse(value) ?? 0;
                                             setState(() {
                                               ex.series[i] = SeriesEntry(
                                                 reps: s.reps,
-                                                weight: double.tryParse(value),
+                                                weight: parsed,
                                               );
                                             });
                                           },
@@ -336,7 +354,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                               }).toList(),
                             ),
 
-                            // Botón añadir serie
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton.icon(
@@ -359,7 +376,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                 ),
               ),
 
-              // Botón añadir ejercicio
               ElevatedButton.icon(
                 onPressed: _addExercise,
                 icon: const Icon(Icons.add),
@@ -367,7 +383,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Botón guardar / actualizar
               ElevatedButton(
                 onPressed: _saveWorkout,
                 style: ElevatedButton.styleFrom(

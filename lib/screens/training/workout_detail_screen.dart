@@ -2,22 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:nutrimotion/models/workout_model.dart';
 import 'package:nutrimotion/screens/training/workout_form_screen.dart';
 
-class WorkoutDetailScreen extends StatefulWidget {
+class WorkoutDetailScreen extends StatelessWidget {
   final Workout workout;
   const WorkoutDetailScreen({super.key, required this.workout});
-
-  @override
-  State<WorkoutDetailScreen> createState() => _WorkoutDetailScreenState();
-}
-
-class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
-  late Workout workout;
-
-  @override
-  void initState() {
-    super.initState();
-    workout = widget.workout;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +77,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                             ),
                           ],
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ],
@@ -107,11 +94,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               builder: (_) => WorkoutFormScreen(existingWorkout: workout),
             ),
           );
-
           if (updatedWorkout != null) {
-            setState(() {
-              workout = updatedWorkout;
-            });
+            Navigator.pop(context, updatedWorkout);
           }
         },
         label: const Text("Editar rutina"),
