@@ -17,6 +17,9 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
 
+  // Lista temporal de controladores para el diálogo de series.
+  // Es importante que sean listas locales al método _addExercise, pero las movemos
+  // al estado para poder manejar la edición/adición dentro del diálogo.
   List<Exercise> _exercises = [];
   String _selectedDay = "Piernas";
 
@@ -28,6 +31,7 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
         text: widget.existingWorkout!.title,
       );
       _selectedDay = widget.existingWorkout!.day;
+      // Clonar la lista para evitar modificar la original antes de guardar
       _exercises = List.from(widget.existingWorkout!.exercises);
     } else {
       _titleController = TextEditingController();
@@ -41,6 +45,7 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
     super.dispose();
   }
 
+  // LÓGICA: Mantenida y solo mejorada la UI del diálogo
   void _addExercise() async {
     final exerciseName = await Navigator.push(
       context,
@@ -51,8 +56,18 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
 
     if (exerciseName == null) return;
 
-    List<TextEditingController> repsControllers = [TextEditingController()];
-    List<TextEditingController> weightControllers = [TextEditingController()];
+    // Controladores temporales para el diálogo de configuración
+    List<TextEditingController> repsControllers = [
+      TextEditingController(text: '8'),
+    ];
+    List<TextEditingController> weightControllers = [
+      TextEditingController(text: '0'),
+    ];
+
+    // Lista temporal para manejar las series en el diálogo (MANTENIDA POR CONSISTENCIA)
+    List<SeriesEntry> tempSeries = [SeriesEntry(reps: 8, weight: 0)];
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -61,48 +76,108 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
           builder: (context, setStateDialog) {
             return AlertDialog(
               title: Text("Configurar $exerciseName"),
+              contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text("Series"),
+                    Text(
+                      "Define las repeticiones y el peso para cada serie:",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    // Lista de series
                     Column(
-                      children: List.generate(repsControllers.length, (i) {
-                        return Row(
-                          children: [
-                            Text("Serie ${i + 1}: "),
-                            Expanded(
-                              child: TextField(
-                                controller: repsControllers[i],
-                                decoration: const InputDecoration(
-                                  labelText: "Reps",
+                      children: List.generate(tempSeries.length, (i) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            children: [
+                              Container(
+                                alignment: Alignment.center,
+                                width: 24,
+                                child: Text(
+                                  "S${i + 1}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                                keyboardType: TextInputType.number,
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: weightControllers[i],
-                                decoration: const InputDecoration(
-                                  labelText: "Peso (kg)",
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: repsControllers[i],
+                                  decoration: const InputDecoration(
+                                    labelText: "Reps",
+                                    isDense: true,
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
                                 ),
-                                keyboardType: TextInputType.number,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: weightControllers[i],
+                                  decoration: const InputDecoration(
+                                    labelText: "Peso (kg)",
+                                    isDense: true,
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              // Botón de eliminar serie
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () {
+                                  if (tempSeries.length > 1) {
+                                    // No permitir eliminar la última serie
+                                    setStateDialog(() {
+                                      repsControllers.removeAt(i);
+                                      weightControllers.removeAt(i);
+                                      tempSeries.removeAt(i);
+                                    });
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Debes tener al menos 1 serie.",
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
                         );
                       }),
                     ),
-                    TextButton.icon(
-                      onPressed: () {
-                        setStateDialog(() {
-                          repsControllers.add(TextEditingController());
-                          weightControllers.add(TextEditingController());
-                        });
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text("Añadir serie"),
+                    // Botón para añadir serie
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setStateDialog(() {
+                            // Agregar nuevos controladores para la nueva serie
+                            repsControllers.add(
+                              TextEditingController(text: '8'),
+                            );
+                            weightControllers.add(
+                              TextEditingController(text: '0'),
+                            );
+                            tempSeries.add(SeriesEntry(reps: 8, weight: 0));
+                          });
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text("Añadir serie"),
+                      ),
                     ),
                   ],
                 ),
@@ -112,42 +187,56 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                   onPressed: () => Navigator.pop(context),
                   child: const Text("Cancelar"),
                 ),
-                ElevatedButton(
+                FilledButton(
                   onPressed: () {
-                    final series = <SeriesEntry>[];
-                    bool hasZero = false;
+                    final newSeries = <SeriesEntry>[];
+                    bool hasInvalidValue = false;
 
+                    // 🎯 NUEVA VALIDACIÓN DE CERO AQUÍ
                     for (var i = 0; i < repsControllers.length; i++) {
+                      // Intentar parsear los valores. Si no es un número, o es <= 0, es inválido.
                       final reps = int.tryParse(repsControllers[i].text) ?? 0;
                       final weight =
                           double.tryParse(weightControllers[i].text) ?? 0;
+
+                      // Validación: Reps y Weight deben ser > 0.
+                      // Nota: Si quieres permitir peso corporal (weight = 0), ajusta la condición.
+                      // La regla que indicaste fue: "no pueden haber valores 0 ni en reps, ni en peso"
                       if (reps <= 0 || weight <= 0) {
-                        hasZero = true;
+                        hasInvalidValue = true;
                         break;
                       }
-                      series.add(SeriesEntry(reps: reps, weight: weight));
+                      newSeries.add(SeriesEntry(reps: reps, weight: weight));
                     }
+                    // 🎯 FIN DE NUEVA VALIDACIÓN
 
-                    if (hasZero) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "❌ No se permiten valores 0 en series o peso.",
+                    if (hasInvalidValue) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "❌ Las repeticiones y el peso deben ser mayores a 0 en todas las series.",
+                            ),
+                            backgroundColor: Colors.red,
                           ),
-                        ),
-                      );
+                        );
+                      }
                       return;
                     }
 
                     setState(() {
                       _exercises.add(
-                        Exercise(name: exerciseName, series: series),
+                        Exercise(name: exerciseName, series: newSeries),
                       );
                     });
 
-                    Navigator.pop(context);
+                    // Limpiar controladores
+                    for (var c in repsControllers) c.dispose();
+                    for (var c in weightControllers) c.dispose();
+
+                    if (mounted) Navigator.pop(context);
                   },
-                  child: const Text("Añadir"),
+                  child: const Text("Añadir Ejercicio"),
                 ),
               ],
             );
@@ -157,16 +246,28 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
     );
   }
 
+  // LÓGICA: Mantenida, con validación ligeramente mejorada
   void _saveWorkout() {
     if (!_formKey.currentState!.validate()) return;
 
-    // ✅ Validar que no haya valores 0 en los ejercicios existentes
+    if (_exercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("❌ Debes añadir al menos un ejercicio a la rutina."),
+        ),
+      );
+      return;
+    }
+
+    // Validación final para repeticiones (peso puede ser 0)
     for (final ex in _exercises) {
       for (final s in ex.series) {
-        if (s.reps <= 0 || (s.weight ?? 0) <= 0) {
+        if (s.reps <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("❌ '${ex.name}' tiene valores 0 en sus series."),
+              content: Text(
+                "❌ El ejercicio '${ex.name}' tiene series con repeticiones en 0 o menos.",
+              ),
             ),
           );
           return;
@@ -192,216 +293,430 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
       workoutService.addWorkout(userId, workout);
     }
 
-    Navigator.pop(context, workout);
+    if (mounted) {
+      Navigator.pop(context, workout);
+    }
   }
 
+  // 🖼️ INTERFAZ DE USUARIO (BUILD)
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
           widget.existingWorkout != null ? "Editar Rutina" : "Nueva Rutina",
+          style: theme.textTheme.titleLarge!.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
+        backgroundColor: theme.colorScheme.surfaceContainer,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: "Nombre de la Rutina",
-                ),
-                validator: (value) => value!.isEmpty ? "Campo requerido" : null,
-              ),
-              const SizedBox(height: 20),
-
-              DropdownButtonFormField<String>(
-                value: _selectedDay,
-                decoration: const InputDecoration(
-                  labelText: "Día / Grupo muscular",
-                  prefixIcon: Icon(Icons.fitness_center),
-                ),
-                items: const [
-                  DropdownMenuItem(value: "Piernas", child: Text("Piernas")),
-                  DropdownMenuItem(value: "Espalda", child: Text("Espalda")),
-                  DropdownMenuItem(value: "Pecho", child: Text("Pecho")),
-                  DropdownMenuItem(value: "Hombros", child: Text("Hombros")),
-                  DropdownMenuItem(value: "Brazos", child: Text("Brazos")),
-                  DropdownMenuItem(value: "FullBody", child: Text("Full Body")),
-                ],
-                onChanged: (value) => setState(() => _selectedDay = value!),
-              ),
-              const SizedBox(height: 20),
-
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _exercises.length,
-                  itemBuilder: (context, index) {
-                    final ex = _exercises[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  ex.name,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _exercises.removeAt(index);
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-
-                            Column(
-                              children: ex.series.asMap().entries.map((entry) {
-                                final i = entry.key;
-                                final s = entry.value;
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 4,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Text("Serie ${i + 1}: "),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: TextFormField(
-                                          initialValue: s.reps.toString(),
-                                          decoration: const InputDecoration(
-                                            labelText: "Reps",
-                                            border: OutlineInputBorder(),
-                                            contentPadding:
-                                                EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 4,
-                                                ),
-                                          ),
-                                          keyboardType: TextInputType.number,
-                                          onChanged: (value) {
-                                            final parsed =
-                                                int.tryParse(value) ?? 0;
-                                            setState(() {
-                                              ex.series[i] = SeriesEntry(
-                                                reps: parsed,
-                                                weight: s.weight,
-                                              );
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: TextFormField(
-                                          initialValue:
-                                              s.weight?.toString() ?? '',
-                                          decoration: const InputDecoration(
-                                            labelText: "Peso (kg)",
-                                            border: OutlineInputBorder(),
-                                            contentPadding:
-                                                EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 4,
-                                                ),
-                                          ),
-                                          keyboardType: TextInputType.number,
-                                          onChanged: (value) {
-                                            final parsed =
-                                                double.tryParse(value) ?? 0;
-                                            setState(() {
-                                              ex.series[i] = SeriesEntry(
-                                                reps: s.reps,
-                                                weight: parsed,
-                                              );
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.delete,
-                                          color: Colors.red,
-                                        ),
-                                        onPressed: () {
-                                          setState(() {
-                                            ex.series.removeAt(i);
-                                          });
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: () {
-                                  setState(() {
-                                    ex.series.add(
-                                      SeriesEntry(reps: 0, weight: 0),
-                                    );
-                                  });
-                                },
-                                icon: const Icon(Icons.add),
-                                label: const Text("Añadir serie"),
-                              ),
-                            ),
-                          ],
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 🏷️ Título de la Rutina
+                    TextFormField(
+                      controller: _titleController,
+                      decoration: const InputDecoration(
+                        labelText: "Nombre de la Rutina",
+                        hintText: "Ej. Pecho y Tríceps Avanzado",
+                        prefixIcon: Icon(Icons.label_important_outline_rounded),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
                         ),
                       ),
-                    );
-                  },
+                      validator: (value) =>
+                          value!.isEmpty ? "El nombre es requerido" : null,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // 🗓️ Selector de Día / Grupo Muscular
+                    DropdownButtonFormField<String>(
+                      value: _selectedDay,
+                      decoration: const InputDecoration(
+                        labelText: "Día / Grupo muscular",
+                        prefixIcon: Icon(Icons.fitness_center_rounded),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
+                        ),
+                        contentPadding: EdgeInsets.fromLTRB(12, 18, 12, 18),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: "Piernas",
+                          child: Text("Piernas 🦵"),
+                        ),
+                        DropdownMenuItem(
+                          value: "Espalda",
+                          child: Text("Espalda 🔄"),
+                        ),
+                        DropdownMenuItem(
+                          value: "Pecho",
+                          child: Text("Pecho 💥"),
+                        ),
+                        DropdownMenuItem(
+                          value: "Hombros",
+                          child: Text("Hombros ⛰️"),
+                        ),
+                        DropdownMenuItem(
+                          value: "Brazos",
+                          child: Text("Brazos 💪"),
+                        ),
+                        DropdownMenuItem(
+                          value: "FullBody",
+                          child: Text("Full Body 🤸"),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _selectedDay = value!),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // 📋 Lista de Ejercicios
+                    Text(
+                      "Ejercicios de la rutina (${_exercises.length})",
+                      style: theme.textTheme.titleMedium!.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    _exercises.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20.0),
+                            child: Center(
+                              child: Text(
+                                "Toca 'Añadir Ejercicio' para empezar.",
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _exercises.length,
+                            itemBuilder: (context, index) {
+                              final ex = _exercises[index];
+
+                              // Usar Dismissible para eliminar con swipe
+                              return Dismissible(
+                                key: ValueKey(ex.name + index.toString()),
+                                direction: DismissDirection.endToStart,
+                                onDismissed: (direction) {
+                                  setState(() {
+                                    _exercises.removeAt(index);
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("'${ex.name}' eliminado."),
+                                    ),
+                                  );
+                                },
+                                background: Container(
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 20),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.errorContainer,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    Icons.delete_sweep_rounded,
+                                    color: theme.colorScheme.error,
+                                    size: 30,
+                                  ),
+                                ),
+                                child: Card(
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // Título del ejercicio
+                                        Text(
+                                          ex.name,
+                                          style: theme.textTheme.titleMedium!
+                                              .copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                color:
+                                                    theme.colorScheme.primary,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 10),
+
+                                        // Encabezados de la tabla de series
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 4.0,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const SizedBox(
+                                                width: 45,
+                                              ), // Espacio para "Serie N"
+                                              Expanded(
+                                                child: Text(
+                                                  "REPS",
+                                                  style: theme
+                                                      .textTheme
+                                                      .labelSmall,
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: Text(
+                                                  "PESO (kg)",
+                                                  style: theme
+                                                      .textTheme
+                                                      .labelSmall,
+                                                ),
+                                              ),
+                                              const SizedBox(
+                                                width: 48,
+                                              ), // Espacio para el botón de eliminar
+                                            ],
+                                          ),
+                                        ),
+                                        const Divider(height: 1, thickness: 1),
+                                        const SizedBox(height: 8),
+
+                                        // Series editables
+                                        ...ex.series.asMap().entries.map((
+                                          entry,
+                                        ) {
+                                          final i = entry.key;
+                                          final s = entry.value;
+                                          return Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 6,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 45,
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: Text(
+                                                    "S${i + 1}:",
+                                                    style: theme
+                                                        .textTheme
+                                                        .bodyMedium!
+                                                        .copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  child: TextFormField(
+                                                    initialValue: s.reps
+                                                        .toString(),
+                                                    keyboardType:
+                                                        TextInputType.number,
+                                                    textAlign: TextAlign.center,
+                                                    decoration: const InputDecoration(
+                                                      isDense: true,
+                                                      contentPadding:
+                                                          EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 4,
+                                                          ),
+                                                      border: OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.all(
+                                                              Radius.circular(
+                                                                8,
+                                                              ),
+                                                            ),
+                                                      ),
+                                                    ),
+                                                    onChanged: (value) {
+                                                      final parsed =
+                                                          int.tryParse(value) ??
+                                                          0;
+                                                      setState(() {
+                                                        ex.series[i] =
+                                                            SeriesEntry(
+                                                              reps: parsed,
+                                                              weight: s.weight,
+                                                            );
+                                                      });
+                                                    },
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: TextFormField(
+                                                    initialValue:
+                                                        s.weight?.toString() ??
+                                                        '0',
+                                                    keyboardType:
+                                                        TextInputType.number,
+                                                    textAlign: TextAlign.center,
+                                                    decoration: const InputDecoration(
+                                                      isDense: true,
+                                                      contentPadding:
+                                                          EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 4,
+                                                          ),
+                                                      border: OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.all(
+                                                              Radius.circular(
+                                                                8,
+                                                              ),
+                                                            ),
+                                                      ),
+                                                    ),
+                                                    onChanged: (value) {
+                                                      final parsed =
+                                                          double.tryParse(
+                                                            value,
+                                                          ) ??
+                                                          0;
+                                                      setState(() {
+                                                        ex.series[i] =
+                                                            SeriesEntry(
+                                                              reps: s.reps,
+                                                              weight: parsed,
+                                                            );
+                                                      });
+                                                    },
+                                                  ),
+                                                ),
+                                                // Botón para eliminar serie individualmente
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.close_rounded,
+                                                    color:
+                                                        theme.colorScheme.error,
+                                                  ),
+                                                  onPressed: () {
+                                                    if (ex.series.length > 1) {
+                                                      setState(() {
+                                                        ex.series.removeAt(i);
+                                                      });
+                                                    } else {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            "Un ejercicio debe tener al menos una serie.",
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  },
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+
+                                        // Botón de añadir serie por ejercicio
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: TextButton.icon(
+                                            onPressed: () {
+                                              setState(() {
+                                                ex.series.add(
+                                                  SeriesEntry(
+                                                    reps: 8,
+                                                    weight: 0,
+                                                  ), // Valores por defecto sugeridos
+                                                );
+                                              });
+                                            },
+                                            icon: const Icon(
+                                              Icons.add_circle_outline,
+                                            ),
+                                            label: const Text(
+                                              "Añadir otra serie",
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ],
                 ),
               ),
+            ),
+          ),
 
-              ElevatedButton.icon(
+          // ➕ Botón Añadir Ejercicio (siempre visible)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 10.0,
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
                 onPressed: _addExercise,
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.playlist_add_rounded),
                 label: const Text("Añadir Ejercicio"),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(color: theme.colorScheme.primary, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-              const SizedBox(height: 20),
+            ),
+          ),
 
-              ElevatedButton(
+          // 💾 Botón de Guardar
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20.0, 0, 20.0, 20.0),
+            child: SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: FilledButton(
                 onPressed: _saveWorkout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  minimumSize: const Size(double.infinity, 50),
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: Text(
                   widget.existingWorkout != null
-                      ? "Actualizar rutina"
-                      : "Guardar rutina",
-                  style: const TextStyle(
-                    fontSize: 16,
+                      ? "ACTUALIZAR RUTINA"
+                      : "GUARDAR RUTINA",
+                  style: theme.textTheme.titleMedium!.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

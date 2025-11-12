@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:nutrimotion/models/training_session_model.dart';
 import 'package:nutrimotion/services/training_session_service.dart';
+import 'package:intl/intl.dart'; // Necesario para DateFormat y NumberFormat
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -13,8 +14,8 @@ class ProgressScreen extends StatefulWidget {
 
 class _ProgressScreenState extends State<ProgressScreen> {
   final sessionService = TrainingSessionService();
-  List<TrainingSession> _sessions = [];
-  bool _loading = true;
+
+  Stream<List<TrainingSession>>? _sessionsStream;
 
   String? _selectedGroup;
   String? _selectedExercise;
@@ -66,45 +67,63 @@ class _ProgressScreenState extends State<ProgressScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSessions();
+    _loadSessionsStream();
   }
 
-  Future<void> _loadSessions() async {
-    final userId = FirebaseAuth.instance.currentUser!.uid;
-    sessionService.getSessions(userId).listen((sessions) {
-      setState(() {
-        _sessions = sessions;
-        _loading = false;
-      });
-    });
+  void _loadSessionsStream() {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      _sessionsStream = sessionService.getSessions(userId);
+    }
   }
 
   /// Devuelve todos los ejercicios del grupo seleccionado
   List<String> get _availableExercises {
     if (_selectedGroup == null) return [];
-    final targetList = _groupExercises[_selectedGroup!] ?? [];
-    return targetList; // ahora no filtramos por sesiones
+    return _groupExercises[_selectedGroup!] ?? [];
   }
 
   /// Obtiene los datos del ejercicio seleccionado para graficar
-  List<Map<String, dynamic>> get _exerciseHistory {
+  List<Map<String, dynamic>> _getExerciseHistory(
+    List<TrainingSession> sessions,
+  ) {
     if (_selectedExercise == null) return [];
     final history = <Map<String, dynamic>>[];
 
-    for (final session in _sessions) {
+    // Mapa para agrupar por fecha y calcular el peso promedio por sesión
+    final Map<DateTime, List<double>> weightsByDate = {};
+
+    for (final session in sessions) {
       final matching = session.exercises
           .where((ex) => ex.name == _selectedExercise)
           .toList();
+
       if (matching.isNotEmpty) {
-        final allSeries = matching.expand((e) => e.series).toList();
-        final avgWeight =
-            allSeries
-                .map((s) => s.weight ?? 0)
-                .fold<double>(0, (a, b) => a + b) /
-            (allSeries.isNotEmpty ? allSeries.length : 1);
-        history.add({'date': session.date, 'weight': avgWeight});
+        // Normalizamos la fecha a medianoche para agrupar por día
+        final sessionDate = DateTime(
+          session.date.year,
+          session.date.month,
+          session.date.day,
+        );
+
+        // Obtenemos todos los pesos de todas las series de ese ejercicio en esa sesión
+        final allWeights = matching
+            .expand((e) => e.series)
+            .map((s) => s.weight ?? 0.0)
+            .toList();
+
+        weightsByDate.putIfAbsent(sessionDate, () => []).addAll(allWeights);
       }
     }
+
+    // Calcular el promedio de peso efectivo (por serie) por fecha
+    weightsByDate.forEach((date, weights) {
+      if (weights.isNotEmpty) {
+        final avgWeight =
+            weights.fold<double>(0, (a, b) => a + b) / weights.length;
+        history.add({'date': date, 'weight': avgWeight});
+      }
+    });
 
     history.sort((a, b) => a['date'].compareTo(b['date']));
     return history;
@@ -112,148 +131,426 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Progreso")),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Selecciona una zona y un ejercicio:",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
+      appBar: AppBar(
+        title: const Text("Progreso de Entrenamiento"),
+        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+      ),
+      body: StreamBuilder<List<TrainingSession>>(
+        stream: _sessionsStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                  // Selección de grupo muscular
-                  DropdownButtonFormField<String>(
-                    value: _selectedGroup,
-                    hint: const Text("Seleccionar grupo muscular"),
-                    items: _groupExercises.keys
-                        .map(
-                          (group) => DropdownMenuItem(
-                            value: group,
-                            child: Text(group),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedGroup = value;
-                        _selectedExercise = null;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
+          if (snapshot.hasError) {
+            return Center(
+              child: Text("Error al cargar datos: ${snapshot.error}"),
+            );
+          }
 
-                  // Selección de ejercicio
-                  if (_selectedGroup != null)
-                    DropdownButtonFormField<String>(
-                      value: _selectedExercise,
-                      hint: const Text("Seleccionar ejercicio"),
-                      items: _availableExercises
-                          .map(
-                            (name) => DropdownMenuItem(
-                              value: name,
-                              child: Text(name),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedExercise = value;
-                        });
-                      },
+          final sessions = snapshot.data ?? [];
+          final history = _getExerciseHistory(sessions);
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Visualización de la Evolución:",
+                  style: theme.textTheme.titleLarge!.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Divider(),
+                const SizedBox(height: 8),
+
+                // Selección de grupo muscular
+                DropdownButtonFormField<String>(
+                  value: _selectedGroup,
+                  decoration: _buildInputDecoration(theme, "Grupo Muscular"),
+                  items: _groupExercises.keys
+                      .map(
+                        (group) =>
+                            DropdownMenuItem(value: group, child: Text(group)),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedGroup = value;
+                      _selectedExercise = null;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Selección de ejercicio
+                DropdownButtonFormField<String>(
+                  value: _selectedExercise,
+                  decoration: _buildInputDecoration(
+                    theme,
+                    "Ejercicio Específico",
+                  ),
+                  items: _availableExercises
+                      .map(
+                        (name) =>
+                            DropdownMenuItem(value: name, child: Text(name)),
+                      )
+                      .toList(),
+                  onChanged: _selectedGroup == null
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _selectedExercise = value;
+                          });
+                        },
+                  disabledHint: Text(
+                    _selectedGroup == null
+                        ? "Selecciona un grupo primero"
+                        : "Ejercicio Específico",
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant.withOpacity(
+                        0.5,
+                      ),
                     ),
-                  const SizedBox(height: 24),
-
-                  Expanded(
-                    child: _selectedExercise == null
-                        ? const Center(
-                            child: Text(
-                              "Selecciona un ejercicio para ver tu evolución 📈",
-                              style: TextStyle(fontSize: 16),
-                            ),
-                          )
-                        : _exerciseHistory.isEmpty
-                        ? const Center(
-                            child: Text(
-                              "No hay datos aún para este ejercicio",
-                              style: TextStyle(fontSize: 16),
-                            ),
-                          )
-                        : _buildChart(),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 24),
+
+                // 📊 Gráfico de Progreso
+                if (_selectedExercise == null)
+                  _buildEmptyState(
+                    "Selecciona un ejercicio para ver tu evolución 📈",
+                    Icons.trending_up_rounded,
+                  )
+                else if (history.isEmpty)
+                  _buildEmptyState(
+                    "No hay datos aún para este ejercicio 😔",
+                    Icons.search_off,
+                  )
+                else
+                  _buildChart(history, theme),
+              ],
             ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildChart() {
-    final data = _exerciseHistory;
+  // Helper para el estilo de los Dropdowns
+  InputDecoration _buildInputDecoration(ThemeData theme, String label) {
+    return InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(
+          color: theme.colorScheme.outline.withOpacity(0.5),
+        ),
+      ),
+    );
+  }
 
+  Widget _buildEmptyState(String message, IconData icon) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 60),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 80,
+              color: theme.colorScheme.outline.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium!.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChart(List<Map<String, dynamic>> data, ThemeData theme) {
     final spots = data
         .asMap()
         .entries
         .map((e) => FlSpot(e.key.toDouble(), e.value['weight'] as double))
         .toList();
 
+    // 1. Cálculo de Ejes Y MEJORADO (Se mantiene igual)
+    double minWeight = data
+        .map((e) => e['weight'] as double)
+        .reduce((a, b) => a < b ? a : b);
+    double maxWeight = data
+        .map((e) => e['weight'] as double)
+        .reduce((a, b) => a > b ? a : b);
+
+    double minY = 0;
+    double maxY = maxWeight;
+
+    // Forzamos un margen para evitar que los puntos toquen los bordes
+    if (data.length <= 2 || (maxWeight - minWeight) < 1.0) {
+      minY = (minWeight - 5).clamp(0, minWeight);
+      maxY = maxWeight + 5;
+    } else {
+      // Damos un margen más sutil (10% del rango)
+      final padding = (maxWeight - minWeight) * 0.1;
+      minY = (minWeight - padding).clamp(0, minWeight);
+      maxY = maxWeight + padding;
+    }
+
+    if (maxY == 0) maxY = 10;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           "Progreso de $_selectedExercise",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: theme.textTheme.headlineSmall!.copyWith(
+            color: theme.colorScheme.primary,
+          ),
         ),
         const SizedBox(height: 16),
-        Expanded(
-          child: LineChart(
-            LineChartData(
-              minY: 0,
-              titlesData: FlTitlesData(
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: true, reservedSize: 40),
+        // Contenedor para la gráfica
+        AspectRatio(
+          // 🚀 MEJORA 1: Mayor altura para el gráfico
+          aspectRatio: 1.2,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: LineChart(
+              LineChartData(
+                minY: minY,
+                maxY: maxY,
+                extraLinesData: ExtraLinesData(
+                  verticalLines: [
+                    VerticalLine(
+                      x: data.length.toDouble() - 0.5,
+                      color: theme.colorScheme.outlineVariant,
+                      strokeWidth: 1,
+                      dashArray: [5, 5],
+                    ),
+                  ],
                 ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    interval: 1,
-                    getTitlesWidget: (value, meta) {
-                      final index = value.toInt();
-                      if (index < 0 || index >= data.length) {
-                        return const Text('');
-                      }
-                      final date = data[index]['date'] as DateTime;
-                      return Text(
-                        "${date.day}/${date.month}",
-                        style: const TextStyle(fontSize: 10),
-                      );
+                titlesData: FlTitlesData(
+                  show: true,
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  // Títulos del Eje Y
+                  leftTitles: AxisTitles(
+                    axisNameWidget: const Text("Peso (kg)"),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      // 🚀 MEJORA 3a: Más espacio para las etiquetas del Eje Y
+                      reservedSize: 50,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          NumberFormat('0.#').format(value),
+                          style: theme.textTheme.labelSmall,
+                        );
+                      },
+                    ),
+                  ),
+                  // Títulos del Eje X
+                  bottomTitles: AxisTitles(
+                    axisNameWidget: const Text("Fecha de Sesión"),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      // 🚀 MEJORA 2: Mostrar una etiqueta cada 3 puntos para dar aire
+                      interval: 3,
+                      // 🚀 MEJORA 3b: Más espacio para las etiquetas del Eje X
+                      reservedSize: 45,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= data.length) {
+                          return const Text('');
+                        }
+                        // Solo mostramos etiquetas en los intervalos correctos
+                        if (index % 3 != 0) {
+                          return Container();
+                        }
+
+                        final date = data[index]['date'] as DateTime;
+
+                        return SideTitleWidget(
+                          meta: meta,
+                          angle: -45 * (3.14159 / 180),
+                          space: 10,
+                          child: Text(
+                            // 🚀 MEJORA 2b: Formato más compacto (ej: 01/Nov)
+                            DateFormat('dd/MMM', 'es_ES').format(date),
+                            style: theme.textTheme.labelSmall,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: theme.colorScheme.outlineVariant,
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    isCurved: true,
+                    color: theme.colorScheme.primary,
+                    barWidth: 3,
+                    spots: spots,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) {
+                        return FlDotCirclePainter(
+                          radius: 4,
+                          color: theme.colorScheme.primary,
+                          strokeWidth: 1.5,
+                          strokeColor: theme.colorScheme.onPrimary,
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: theme.colorScheme.primary.withOpacity(0.1),
+                    ),
+                  ),
+                ],
+                // Tooltip
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((LineBarSpot touchedSpot) {
+                        final date =
+                            data[touchedSpot.spotIndex]['date'] as DateTime;
+                        final weight = touchedSpot.y;
+
+                        return LineTooltipItem(
+                          '${DateFormat('dd/MM/yy').format(date)}\n',
+                          theme.textTheme.labelSmall!.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: '${NumberFormat('0.##').format(weight)} kg',
+                              style: theme.textTheme.titleSmall!.copyWith(
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList();
                     },
                   ),
                 ),
               ),
-              gridData: const FlGridData(show: true),
-              lineBarsData: [
-                LineChartBarData(
-                  isCurved: true,
-                  color: Colors.green,
-                  barWidth: 3,
-                  spots: spots,
-                  dotData: const FlDotData(show: true),
-                ),
-              ],
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        const Text(
-          "Eje X: Fecha | Eje Y: Peso promedio (kg)",
-          style: TextStyle(fontSize: 12, color: Colors.grey),
+
+        const SizedBox(height: 24),
+        // 📋 Historial en formato de tabla (se mantiene igual)
+        Text(
+          "Historial de Registros",
+          style: theme.textTheme.titleMedium!.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
+        const SizedBox(height: 12),
+        _buildHistoryTable(data, theme),
       ],
+    );
+  }
+
+  // Widget para la tabla de historial
+  Widget _buildHistoryTable(List<Map<String, dynamic>> data, ThemeData theme) {
+    return Card(
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children: [
+            // Encabezado
+            Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Fecha",
+                    style: theme.textTheme.titleSmall!.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    "Peso Promedio (kg)",
+                    style: theme.textTheme.titleSmall!.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Filas de Datos
+            ...data.map((item) {
+              final date = item['date'] as DateTime;
+              final weight = item['weight'] as double;
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8.0,
+                  horizontal: 16,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(DateFormat('dd MMM yyyy').format(date)),
+                    Text(
+                      NumberFormat('0.##').format(weight),
+                      style: theme.textTheme.bodyLarge!.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
     );
   }
 }

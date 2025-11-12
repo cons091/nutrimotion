@@ -61,22 +61,36 @@ class Exercise {
 class SeriesEntry {
   int reps;
   double? weight;
+  // 🔑 PROPIEDAD AÑADIDA PARA CONTROLAR EL ESTADO EN LA SESIÓN DE ENTRENAMIENTO
+  bool? isCompleted;
 
-  SeriesEntry({required this.reps, this.weight});
+  SeriesEntry({required this.reps, this.weight, this.isCompleted = false});
 
   Map<String, dynamic> toMap() {
-    return {'reps': reps, 'weight': weight};
+    // Es importante guardar 'isCompleted' si quieres persistir el estado de la serie.
+    // Aunque para guardar el registro final, solo necesitamos reps y weight.
+    return {
+      'reps': reps,
+      'weight': weight,
+      'isCompleted': isCompleted, // Lo guardamos también
+    };
   }
 
   factory SeriesEntry.fromMap(Map<String, dynamic> map) {
     return SeriesEntry(
       reps: map['reps'] ?? 0,
       weight: map['weight'] != null ? (map['weight'] as num).toDouble() : null,
+      // Recuperamos el estado de completado. Si no está en el mapa, es false por defecto.
+      isCompleted: map['isCompleted'] ?? false,
     );
   }
 
   /// Nuevo: para actualizar reps o peso sin crear todo manualmente
-  SeriesEntry copyWith({int? reps, double? weight}) {
-    return SeriesEntry(reps: reps ?? this.reps, weight: weight ?? this.weight);
+  SeriesEntry copyWith({int? reps, double? weight, bool? isCompleted}) {
+    return SeriesEntry(
+      reps: reps ?? this.reps,
+      weight: weight ?? this.weight,
+      isCompleted: isCompleted ?? this.isCompleted,
+    );
   }
 }
