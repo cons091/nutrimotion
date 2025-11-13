@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Necesario para TextInputFormatter
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:nutrimotion/models/user_model.dart'; // Asumiendo que AppUser está aquí
+import 'package:nutrimotion/models/user_model.dart';
+import 'package:nutrimotion/services/nutrition_calculator.dart';
+import 'package:nutrimotion/screens/nutrition/nutrition_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,7 +23,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final _pesoController = TextEditingController();
   final _alturaController = TextEditingController();
+  final _edadController =
+      TextEditingController(); // 🌟 NUEVO: Controlador para Edad
+
   String? _objetivo;
+  String? _sexo; // 🌟 NUEVO: Variable para Sexo
   String? _photoUrl;
 
   final picker = ImagePicker();
@@ -35,6 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _pesoController.dispose();
     _alturaController.dispose();
+    _edadController.dispose(); // 🌟 DISPOSE: Edad
     super.dispose();
   }
 
@@ -60,6 +68,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _alturaController.text =
               _userData?.altura?.toStringAsFixed(0) ??
               ''; // Mostrar sin decimal
+
+          // 🌟 CARGAR EDAD Y SEXO
+          _edadController.text = _userData?.edad?.toString() ?? '';
+          _sexo = _userData?.sexo;
+
           _objetivo = _userData?.objetivo ?? "Mantenimiento";
           _photoUrl = data["photoUrl"];
           _isLoading = false;
@@ -71,6 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickImage() async {
+    // ... (Tu función _pickImage se mantiene igual)
     final pickedFile = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 50,
@@ -85,7 +99,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'profile_photos/${currentUser!.uid}.jpg',
       );
 
-      // Usar putFile con metadata para mejorar el rendimiento
       await storageRef.putFile(File(pickedFile.path));
       final downloadUrl = await storageRef.getDownloadURL();
 
@@ -102,7 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Foto actualizada 📸"),
+            content: const Text("Foto actualizada 📸"),
             backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
@@ -124,16 +137,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
-    // Validación básica de datos antes de guardar
+    // Validación y Parseo de datos
     final peso = double.tryParse(_pesoController.text);
     final altura = double.tryParse(_alturaController.text);
+    final edad = int.tryParse(_edadController.text); // 🌟 NUEVO: Parsear Edad
 
-    if (peso == null || altura == null || peso <= 0 || altura <= 0) {
+    if (peso == null ||
+        altura == null ||
+        edad == null || // 🌟 VALIDAR EDAD
+        peso <= 0 ||
+        altura <= 0 ||
+        edad < 15 || // Validación de edad mínima razonable
+        _sexo == null) // 🌟 VALIDAR SEXO
+    {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              "Por favor, ingrese valores válidos para Peso y Altura.",
+              "Por favor, ingrese valores válidos para Peso, Altura, Edad y Sexo.",
             ),
             backgroundColor: Colors.red,
           ),
@@ -146,7 +167,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await FirebaseFirestore.instance
           .collection("users")
           .doc(currentUser.uid)
-          .update({"peso": peso, "altura": altura, "objetivo": _objetivo});
+          .update({
+            "peso": peso,
+            "altura": altura,
+            "objetivo": _objetivo,
+            "edad": edad, // 🌟 GUARDAR EDAD
+            "sexo": _sexo, // 🌟 GUARDAR SEXO
+          });
 
       // Recargar datos para reflejar los cambios guardados
       await _loadUserData();
@@ -175,7 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Widget auxiliar para construir un ListTile limpio
+  // Widget auxiliar para construir un ListTile limpio (se mantiene igual)
   Widget _buildInfoTile(
     BuildContext context,
     String title,
@@ -196,13 +223,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Widget auxiliar para construir campos de edición
+  // Widget auxiliar para construir campos de edición (se mantiene igual, pero lo usamos para Edad)
   Widget _buildEditableTile(
     BuildContext context,
     TextEditingController controller,
     String label,
     IconData icon,
     String unit,
+    TextInputType keyboardType, // 🌟 AÑADIDO: Tipo de teclado
+    List<TextInputFormatter>? formatters, // 🌟 AÑADIDO: Formatters
   ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -222,10 +251,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   horizontal: 12,
                 ),
               ),
-              keyboardType: TextInputType.number,
+              keyboardType: keyboardType,
+              inputFormatters: formatters,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // 🌟 NUEVO WIDGET: Campo de Edición para Sexo (Dropdown)
+  Widget _buildSexoEditableTile(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: DropdownButtonFormField<String>(
+        value: _sexo,
+        decoration: const InputDecoration(
+          labelText: "Sexo Biológico",
+          prefixIcon: Icon(Icons.transgender_outlined),
+          border: OutlineInputBorder(),
+        ),
+        items: const [
+          DropdownMenuItem(value: "Hombre", child: Text("Hombre")),
+          DropdownMenuItem(value: "Mujer", child: Text("Mujer")),
+        ],
+        onChanged: (value) => setState(() => _sexo = value),
       ),
     );
   }
@@ -247,14 +297,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Mi Perfil"),
-        backgroundColor: theme.colorScheme.primary, // AppBar con color primario
-        foregroundColor: theme.colorScheme.onPrimary, // Iconos y texto blancos
-        elevation: 0, // Sin sombra
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 🖼️ HEADER DE PERFIL Y FOTO
+            // 🖼️ HEADER DE PERFIL Y FOTO (se mantiene igual)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
@@ -339,6 +389,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             "Peso",
                             Icons.monitor_weight_outlined,
                             "kg",
+                            TextInputType.number,
+                            null,
                           )
                         : _buildInfoTile(
                             context,
@@ -356,6 +408,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             "Altura",
                             Icons.height,
                             "cm",
+                            TextInputType.number,
+                            null,
                           )
                         : _buildInfoTile(
                             context,
@@ -365,31 +419,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                     const Divider(indent: 16, endIndent: 16),
 
+                    // 🌟 NUEVA FILA: EDAD
+                    _isEditing
+                        ? _buildEditableTile(
+                            context,
+                            _edadController,
+                            "Edad",
+                            Icons.cake_outlined,
+                            "años",
+                            TextInputType.number,
+                            [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ], // Solo números enteros
+                          )
+                        : _buildInfoTile(
+                            context,
+                            "Edad",
+                            "${_userData!.edad?.toString() ?? '-'} años",
+                            Icons.cake_outlined,
+                          ),
+                    const Divider(indent: 16, endIndent: 16),
+
+                    // 🌟 NUEVA FILA: SEXO
+                    _isEditing
+                        ? _buildSexoEditableTile(context)
+                        : _buildInfoTile(
+                            context,
+                            "Sexo Biológico",
+                            _userData!.sexo ?? '-',
+                            Icons.transgender_outlined,
+                          ),
+                    const Divider(indent: 16, endIndent: 16),
+
                     // Fila de Objetivo
                     _isEditing
                         ? Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: DropdownButtonFormField<String>(
-                              value: _objetivo,
+                              // ANTES: value: goalAdjustments.keys.contains(_objetivo) ? _objetivo : 'Mantener peso',
+                              // 💡 AHORA: Usamos el nombre completo de la clase
+                              value:
+                                  NutritionCalculator.goalAdjustments.keys
+                                      .contains(_objetivo)
+                                  ? _objetivo
+                                  : 'Mantener peso', // Valor por defecto seguro
                               decoration: const InputDecoration(
                                 labelText: "Objetivo",
                                 prefixIcon: Icon(Icons.flag_outlined),
                                 border: OutlineInputBorder(),
                               ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: "Déficit",
-                                  child: Text("Déficit calórico"),
-                                ),
-                                DropdownMenuItem(
-                                  value: "Mantenimiento",
-                                  child: Text("Mantenimiento"),
-                                ),
-                                DropdownMenuItem(
-                                  value: "Superávit",
-                                  child: Text("Superávit calórico"),
-                                ),
-                              ],
+                              // ANTES: items: goalAdjustments.keys.map((String goalKey) { ...
+                              // 💡 AHORA: Usamos el nombre completo de la clase
+                              items: NutritionCalculator.goalAdjustments.keys
+                                  .map((String goalKey) {
+                                    return DropdownMenuItem<String>(
+                                      value: goalKey,
+                                      child: Text(goalKey),
+                                    );
+                                  })
+                                  .toList(),
                               onChanged: (value) =>
                                   setState(() => _objetivo = value),
                             ),
@@ -423,6 +511,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: () async {
                   await FirebaseAuth.instance.signOut();
                   if (mounted) {
+                    // Asegúrate de que tu ruta de login sea correcta
                     Navigator.pushNamedAndRemoveUntil(
                       context,
                       "/login",
