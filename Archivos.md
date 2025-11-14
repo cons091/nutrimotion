@@ -3,6 +3,9 @@
 1. lib/models:
     - user_model.dart = datos extra del usuario (peso, altura, objetivo, etc)
     - workout_model.dart = Modelo de rutina y ejercicio
+    - training_session_model.dart
+    - food_model.dart = Este modelo definirá la información nutricional que vamos a almacenar para cada alimento.
+    - meal_entry_model.dart = modelo que vincule un alimento de tu base de datos con una comida específica y la cantidad consumida.
 2. lib/providers: 
     - soy texto
 ## Pantallas Principales
@@ -11,6 +14,8 @@
         - login_screen.dart = Inicio de sesion
         - register_screen.dart = Registro de usuario
         - splash_screen.dart = Pantalla que detecta si hay sesion activa
+    - food
+        - food_search_screen.dart = Pantalla simple para buscar y listar los alimentos.
     - home
         - home_screen.dart = Inicio
     - nutrition
@@ -31,6 +36,8 @@
     - firestore_service.dart = 
     - storage_service.dart = 
     - workout_service.dart = 
+    - food_service.dart = Este servicio será el encargado de proporcionar los datos de los alimentos.
+    - meal_service.dart = Manejará una lista de registros en memoria. En el futuro, esto se conectaría a Firebase.
 5. lib/utils:
     - validators.dart = 
 6. lib/widgets

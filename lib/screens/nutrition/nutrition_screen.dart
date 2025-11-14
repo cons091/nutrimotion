@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // Para formatear números
-import 'package:nutrimotion/models/user_model.dart';
+import 'package:intl/intl.dart';
+import 'package:nutrimotion/screens/food/food_search_screen.dart';
 import 'package:nutrimotion/services/nutrition_calculator.dart';
-import 'package:nutrimotion/services/user_service.dart'; // Importar UserService
+import 'package:nutrimotion/services/user_service.dart';
+import 'package:nutrimotion/services/food_service.dart';
+import 'package:nutrimotion/services/meal_service.dart';
+import 'package:nutrimotion/models/meal_entry_model.dart';
+import 'package:nutrimotion/models/food_model.dart';
+import 'package:nutrimotion/models/user_model.dart';
 
 class NutritionScreen extends StatefulWidget {
   const NutritionScreen({super.key});
@@ -17,7 +22,11 @@ class _NutritionScreenState extends State<NutritionScreen> {
   final _userService = UserService();
   final _auth = FirebaseAuth.instance;
   // Formato para mostrar números grandes (ej: 2.000 kcal)
-  final numberFormat = NumberFormat('#,##0', 'es_ES');
+  late final NumberFormat numberFormat;
+
+  // Nuevos servicios de Comida
+  final MealService _mealService = MealService();
+  final _foodService = FoodService();
 
   // Variables de Resultado (Inicializadas a 0 y vacío)
   double _tdee = 0.0;
@@ -34,10 +43,145 @@ class _NutritionScreenState extends State<NutritionScreen> {
   // Variable para almacenar los datos del usuario actualizados
   AppUser? _currentUser;
 
+  // Variables del Diario
+  DateTime _selectedDate =
+      DateTime.now(); // Para el control de la fecha del diario
+  Map<MealType, List<MealEntry>> _currentDayEntries = {}; // Entradas del día
+
   @override
   void initState() {
     super.initState();
-    // No necesitamos llamar a _loadUserData() aquí, el StreamBuilder lo manejará.
+    numberFormat = NumberFormat(
+      '#,##0',
+      'es_ES',
+    ); // Formato de miles (ej: 1.650)
+    _loadMealEntries();
+  }
+
+  // 📅 Método para cargar las entradas del día
+  void _loadMealEntries() {
+    final entries = _mealService.getEntriesForDate(_selectedDate);
+    final groupedEntries = <MealType, List<MealEntry>>{
+      MealType.desayuno: [],
+      MealType.almuerzo: [],
+      MealType.cena: [],
+      MealType.snacks: [],
+    };
+
+    for (var entry in entries) {
+      groupedEntries[entry.mealType]?.add(entry);
+    }
+
+    setState(() {
+      _currentDayEntries = groupedEntries;
+    });
+  }
+
+  // 📅 Método para cambiar la fecha
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+      _loadMealEntries(); // Recargar el diario para la nueva fecha
+    }
+  }
+
+  // Muestra el diálogo para ingresar la nueva cantidad
+  Future<void> _openEditDialog(MealEntry entry) async {
+    final TextEditingController quantityController = TextEditingController(
+      // Inicializar con la cantidad actual
+      text: entry.quantity.toStringAsFixed(0),
+    );
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        final theme = Theme.of(context);
+
+        return AlertDialog(
+          title: Text('Editar: ${entry.foodItem.name}'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                // Muestra la unidad actual
+                Text('Unidad: ${entry.foodItem.unit}'),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: quantityController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Nueva Cantidad',
+                    border: const OutlineInputBorder(),
+                    suffixText:
+                        entry.foodItem.unit, // Muestra la unidad en el campo
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            FilledButton(
+              child: const Text('Guardar'),
+              onPressed: () {
+                final newQuantity = double.tryParse(quantityController.text);
+                if (newQuantity != null && newQuantity > 0) {
+                  // Llama a la función de actualización y cierra el diálogo
+                  _editEntry(entry, newQuantity);
+                  Navigator.of(context).pop();
+                } else {
+                  // Muestra un error si la entrada no es válida
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Por favor, ingrese una cantidad válida (> 0).',
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Llama al servicio para actualizar la entrada en la base de datos
+  Future<void> _editEntry(MealEntry entry, double newQuantity) async {
+    if (newQuantity <= 0) {
+      _removeEntry(entry.id);
+      return;
+    }
+
+    try {
+      _mealService.updateMealEntry(entry.id, newQuantity: newQuantity);
+
+      // Recarga los datos para actualizar la interfaz
+      _loadMealEntries();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al actualizar la cantidad: $e')),
+      );
+    }
+  }
+
+  // 🗑️ Método para eliminar y recargar
+  void _removeEntry(String entryId) {
+    _mealService.removeEntry(entryId);
+    _loadMealEntries();
   }
 
   /// -------------------------------------------------------------
@@ -408,136 +552,670 @@ Niveles de Actividad:
   /// -------------------------------------------------------------
 
   Widget _buildNutritionContent(ThemeData theme) {
-    // Variables para simplificar la lectura de macros
-    final proteinGrams = _macros['Proteínas'] ?? 0;
-    final carbGrams = _macros['Carbohidratos'] ?? 0;
-    final fatGrams = _macros['Grasas'] ?? 0;
+    // ------------------------------------------------------------------
+    // 1. Cálculo de Metas y Consumido
+    // ------------------------------------------------------------------
+    // Metas Diarias (del cálculo TDEE)
+    final goalCalories = _tdee;
+    final goalProtein = _macros['Proteínas'] ?? 0;
+    final goalCarbs = _macros['Carbohidratos'] ?? 0;
+    final goalFat = _macros['Grasas'] ?? 0;
 
-    // Cálculo de porcentajes para la vista compacta
-    final totalCalories = _tdee > 0 ? _tdee : 1; // Evitar división por cero
-    final proteinKcal =
-        proteinGrams *
-        (NutritionCalculator.caloriesPerGram['Proteínas'] ?? 4.0);
-    final carbKcal =
-        carbGrams *
-        (NutritionCalculator.caloriesPerGram['Carbohidratos'] ?? 4.0);
-    final fatKcal =
-        fatGrams * (NutritionCalculator.caloriesPerGram['Grasas'] ?? 9.0);
+    // Consumido (sumatoria de todas las entradas del día)
+    double consumedCalories = 0;
+    double consumedProtein = 0;
+    double consumedCarbs = 0;
+    double consumedFat = 0;
 
-    final proteinPercent = (proteinKcal / totalCalories) * 100;
-    final carbPercent = (carbKcal / totalCalories) * 100;
-    final fatPercent = (fatKcal / totalCalories) * 100;
+    // Iterar sobre todas las entradas del día
+    for (var mealEntries in _currentDayEntries.values) {
+      for (var entry in mealEntries) {
+        consumedCalories += entry.totalCalories;
+        consumedProtein += entry.totalProtein;
+        consumedCarbs += entry.totalCarbs;
+        consumedFat += entry.totalFat;
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // 2. Construcción de la UI
+    // ------------------------------------------------------------------
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.only(top: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --------------------------------------
-          // TÍTULO Y BOTÓN DE EDICIÓN
-          // --------------------------------------
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Distribución de Macronutrientes',
-                style: theme.textTheme.titleLarge,
-              ),
-              OutlinedButton.icon(
-                onPressed: _showEditDialog,
-                icon: const Icon(Icons.settings_outlined, size: 18),
-                label: const Text('Editar Parámetros'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const Divider(),
+          // 📅 Control de Fecha
+          _buildDateSelector(theme),
+          const Divider(height: 1, indent: 16, endIndent: 16),
           const SizedBox(height: 16),
 
-          // --------------------------------------
-          // CARD COMPACTO DE MACROS Y CALORÍAS
-          // --------------------------------------
-          Card(
-            color: theme.colorScheme.surfaceContainerHigh,
-            elevation: 1,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Fila 1: Calorías Diarias Totales
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Calorías Diarias (TDEE):',
-                        style: theme.textTheme.titleMedium!.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        '${numberFormat.format(_tdee.round())} kcal',
-                        style: theme.textTheme.headlineSmall!.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 24),
+          // 🎯 Metas y Progreso (Barra)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: _buildProgressCard(
+              theme,
+              goalCalories: goalCalories,
+              consumedCalories: consumedCalories,
+              goalProtein: goalProtein,
+              consumedProtein: consumedProtein,
+              goalCarbs: goalCarbs,
+              consumedCarbs: consumedCarbs,
+              goalFat: goalFat,
+              consumedFat: consumedFat,
+            ),
+          ),
 
-                  // Fila 2: Distribución de Macros (Gramos y %)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildMacroColumn(
-                        theme,
-                        'Proteínas',
-                        proteinGrams,
-                        proteinPercent,
-                      ),
-                      _buildMacroColumn(
-                        theme,
-                        'Carbohidratos',
-                        carbGrams,
-                        carbPercent,
-                      ),
-                      _buildMacroColumn(theme, 'Grasas', fatGrams, fatPercent),
-                    ],
+          const SizedBox(height: 24),
+
+          // 📝 Diario de Comidas
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text('Diario de Comidas', style: theme.textTheme.titleLarge),
+          ),
+          const Divider(indent: 16, endIndent: 16),
+
+          // Listado de Secciones de Comida
+          ...MealType.values.map((type) {
+            return _buildMealSection(theme, type);
+          }).toList(),
+
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateSelector(ThemeData theme) {
+    final dateFormat = DateFormat('EEEE, d MMMM', 'es_ES');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8.0,
+        vertical: 8.0,
+      ), // Ajustamos padding
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Botón Anterior
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios, size: 20),
+            onPressed: () {
+              setState(
+                () => _selectedDate = _selectedDate.subtract(
+                  const Duration(days: 1),
+                ),
+              );
+              _loadMealEntries();
+            },
+          ),
+
+          // 📅 Indicador de Fecha (más prominente y clickeable)
+          GestureDetector(
+            onTap: () => _selectDate(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: theme
+                    .colorScheme
+                    .primaryContainer, // Un fondo sutil del color primario
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.shadow.withOpacity(0.1),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
                   ),
                 ],
+              ),
+              child: Text(
+                dateFormat.format(_selectedDate),
+                style: theme.textTheme.titleMedium!.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
               ),
             ),
           ),
 
-          const SizedBox(height: 32),
-
-          // --------------------------------------
-          // Parámetros actuales
-          // --------------------------------------
-          Text('Parámetros de Cálculo', style: theme.textTheme.titleMedium),
-          const Divider(),
-          _buildInfoTile(
-            theme,
-            'Nivel de Actividad',
-            _selectedActivityLevel,
-            Icons.directions_run,
-          ),
-          _buildInfoTile(theme, 'Objetivo', _selectedGoal, Icons.track_changes),
-          _buildInfoTile(
-            theme,
-            'Plan Macro',
-            _selectedMacroPlan,
-            Icons.pie_chart_outline,
+          // Botón Siguiente
+          IconButton(
+            icon: const Icon(Icons.arrow_forward_ios, size: 20),
+            // Desactivar si la fecha es hoy o futura (opcional, pero útil)
+            onPressed:
+                _selectedDate.day == DateTime.now().day &&
+                    _selectedDate.month == DateTime.now().month &&
+                    _selectedDate.year == DateTime.now().year
+                ? null // Desactivar si es hoy
+                : () {
+                    setState(
+                      () => _selectedDate = _selectedDate.add(
+                        const Duration(days: 1),
+                      ),
+                    );
+                    _loadMealEntries();
+                  },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProgressCard(
+    ThemeData theme, {
+    required double goalCalories,
+    required double consumedCalories,
+    required double goalProtein,
+    required double consumedProtein,
+    required double goalCarbs,
+    required double consumedCarbs,
+    required double goalFat,
+    required double consumedFat,
+  }) {
+    // Las variables restantes todavía se necesitan para el progreso de los macros.
+    final remainingProtein = (goalProtein - consumedProtein).round().clamp(
+      0,
+      goalProtein.round(),
+    );
+    final remainingCarbs = (goalCarbs - consumedCarbs).round().clamp(
+      0,
+      goalCarbs.round(),
+    );
+    final remainingFat = (goalFat - consumedFat).round().clamp(
+      0,
+      goalFat.round(),
+    );
+
+    // Fila para mostrar Macros (Restante vs Consumido)
+    final macroRow = Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        // Proteínas
+        _buildMacroProgress(
+          theme,
+          'Proteínas',
+          remainingProtein,
+          goalProtein.round(),
+          consumedProtein.round(),
+          Colors.blue,
+        ),
+        // Carbohidratos
+        _buildMacroProgress(
+          theme,
+          'Carbohidratos',
+          remainingCarbs,
+          goalCarbs.round(),
+          consumedCarbs.round(),
+          Colors.green,
+        ),
+        // Grasas
+        _buildMacroProgress(
+          theme,
+          'Grasas',
+          remainingFat,
+          goalFat.round(),
+          consumedFat.round(),
+          Colors.red,
+        ),
+      ],
+    );
+
+    return Card(
+      elevation: 4,
+      color: theme.colorScheme.surfaceContainerHigh,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // 🚀 NUEVA MÉTRICA PRINCIPAL (Minimalista)
+            Text(
+              // 1. Formato: 0/2.125 calorias
+              // 2. Unidad: 'calorias'
+              '${numberFormat.format(consumedCalories.round())} / ${numberFormat.format(goalCalories.round())} calorias',
+              style: theme.textTheme.headlineMedium!.copyWith(
+                // Usamos el color para indicar si la meta fue superada o no
+                color: consumedCalories <= goalCalories
+                    ? theme.colorScheme.primary
+                    : Colors.red.shade700,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const Divider(height: 24),
+            macroRow,
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Widget auxiliar para cada Macro
+  Widget _buildMacroProgress(
+    ThemeData theme,
+    String title,
+    int remaining,
+    int goal,
+    int consumed,
+    Color color,
+  ) {
+    return Column(
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.bodyLarge!.copyWith(
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Formato Consumido / Meta
+        Text(
+          '${numberFormat.format(consumed)} g / ${numberFormat.format(goal)} g',
+          style: theme.textTheme.bodyMedium,
+        ),
+        // Muestra lo restante
+        Text(
+          remaining > 0 ? '${remaining} g restantes' : '¡Meta Cumplida!',
+          style: theme.textTheme.bodySmall!.copyWith(
+            color: remaining == 0
+                ? Colors.green
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMealSection(ThemeData theme, MealType type) {
+    final title = type.toString().split('.').last.toUpperCase();
+    final entries = _currentDayEntries[type] ?? [];
+    final totalSectionCalories = entries.fold(
+      0.0,
+      (sum, entry) => sum + entry.totalCalories,
+    );
+
+    return Card(
+      // Estructura de Tarjeta: Elegante separación visual
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      elevation:
+          1, // ⬅️ Reducimos la elevación para un look más plano/minimalista
+      color: theme
+          .colorScheme
+          .surfaceContainer, // Fondo sutilmente diferente al Scaffold
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Título de la Sección y Resumen de Calorías
+            ListTile(
+              title: Text(
+                title,
+                // Estilo minimalista: Fuerte pero integrado
+                style: theme.textTheme.titleLarge!.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme
+                      .colorScheme
+                      .onSurface, // Color de texto normal, no primario
+                ),
+              ),
+              trailing: Text(
+                '${numberFormat.format(totalSectionCalories.round())} kcal',
+                style: theme.textTheme.titleMedium!.copyWith(
+                  color: theme.colorScheme.secondary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            const SizedBox(height: 8),
+
+            // Lista de alimentos consumidos
+            if (entries.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: 16.0,
+                  right: 16.0,
+                  top: 8,
+                  bottom: 8,
+                ),
+                child: Text(
+                  'Aún no has registrado nada para el ${title.toLowerCase()}.',
+                  style: theme.textTheme.bodyMedium!.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+
+            ...entries
+                .map((entry) => _buildMealEntryTile(theme, entry))
+                .toList(),
+
+            // ➕ Botón para Añadir Comida
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.add_circle_outline),
+                label: Text('Añadir alimento a ${title.toLowerCase()}'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(40),
+                  side: BorderSide(
+                    color: theme.colorScheme.primary.withOpacity(0.5),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      8,
+                    ), // Bordes menos redondos para elegancia
+                  ),
+                ),
+                onPressed: () => _openFoodSearch(type),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMealEntryTile(ThemeData theme, MealEntry entry) {
+    Widget _buildActionButtons() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ✏️ Botón de Editar Cantidad (Abre el diálogo)
+          IconButton(
+            icon: Icon(
+              Icons.edit_outlined,
+              size: 22,
+              color: theme.colorScheme.primary,
+            ),
+            onPressed: () => _openEditDialog(entry),
+          ),
+          // 🗑️ Botón de Eliminar
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 22, color: Colors.red),
+            onPressed: () => _removeEntry(entry.id),
+          ),
+        ],
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 8, bottom: 4, top: 4),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8.0),
+
+        // ❌ QUITAMOS onTap: Ya no se edita tocando toda la sección
+        onTap: null,
+
+        title: Text(
+          entry.foodItem.name,
+          style: theme.textTheme.bodyLarge!.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            // 1. Cantidad y Calorías
+            Row(
+              children: [
+                Text(
+                  '${numberFormat.format(entry.quantity.round())} ${entry.foodItem.unit} | ',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                Icon(
+                  Icons.flash_on,
+                  size: 14,
+                  color: theme.colorScheme.primary,
+                ),
+                Text(
+                  ' ${entry.totalCalories.toStringAsFixed(0)} kcal',
+                  style: theme.textTheme.bodyMedium!.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            // 2. Macros (P/C/G)
+            Row(
+              children: [
+                Text(
+                  'P:${entry.totalProtein.toStringAsFixed(0)}g',
+                  style: TextStyle(color: Colors.blue.shade700, fontSize: 13),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'C:${entry.totalCarbs.toStringAsFixed(0)}g',
+                  style: TextStyle(color: Colors.green.shade700, fontSize: 13),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'G:${entry.totalFat.toStringAsFixed(0)}g',
+                  style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+                ),
+              ],
+            ),
+          ],
+        ),
+
+        // 🚀 CAMBIO CLAVE: Reemplazamos el trailing con la fila de botones
+        trailing: _buildActionButtons(),
+
+        dense: true,
+      ),
+    );
+  }
+
+  /// 🍽️ Abre la pantalla de búsqueda de alimentos y espera el resultado.
+  void _openFoodSearch(MealType mealType) async {
+    // 💡 NOTA: Asume que tienes definida la clase FoodSearchScreen
+    final selectedFood = await Navigator.of(context).push(
+      MaterialPageRoute<FoodItem>(
+        builder: (context) => FoodSearchScreen(
+          // ⚠️ Necesitamos un constructor que permita devolver un resultado.
+          // Por ahora, solo navegamos y simularemos la adición.
+        ),
+      ),
+    );
+
+    // Si el usuario seleccionó un alimento (futuro)
+    if (selectedFood != null) {
+      // ⭐️ Muestra el diálogo para ingresar la cantidad
+      _showQuantityDialog(selectedFood, mealType);
+    }
+  }
+
+  /// 🍚 Muestra el diálogo para ingresar la cantidad consumida.
+  void _showQuantityDialog(FoodItem foodItem, MealType mealType) {
+    final formKey = GlobalKey<FormState>();
+    final theme = Theme.of(context);
+
+    final quantityController = TextEditingController(
+      text: foodItem.servingSize.toStringAsFixed(0),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateInDialog) {
+            // ⭐️ CLAVE 1: Inicializamos currentQuantity con el valor actual del controlador.
+            double currentQuantity =
+                double.tryParse(quantityController.text) ?? 0.0;
+
+            // Función para calcular los macros basados en la cantidad
+            void _updateCalculations(String? value) {
+              double newQuantity = double.tryParse(value ?? '0') ?? 0.0;
+
+              // ⭐️ CLAVE 2: Actualizar el estado local del diálogo con el nuevo valor
+              setStateInDialog(() {
+                currentQuantity = newQuantity;
+              });
+            }
+
+            // Re-cálculo basado en la cantidad actual (currentQuantity)
+            final multiplier = currentQuantity / foodItem.servingSize;
+            final dynamicCalories = foodItem.calories * multiplier;
+            final dynamicProtein = foodItem.protein * multiplier;
+            final dynamicCarbs = foodItem.carbs * multiplier;
+            final dynamicFat = foodItem.fat * multiplier;
+
+            return AlertDialog(
+              title: Text(
+                'Añadir ${foodItem.name} a ${mealType.toString().split('.').last.toUpperCase()}',
+              ),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Campo de Cantidad (Gramaje)
+                      TextFormField(
+                        controller:
+                            quantityController, // ⬅️ Usamos el controlador definido arriba
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Cantidad (${foodItem.unit})',
+                          suffixText: foodItem.unit,
+                        ),
+                        validator: (value) {
+                          if (value == null ||
+                              double.tryParse(value) == null ||
+                              double.parse(value) <= 0) {
+                            return 'Ingrese una cantidad válida.';
+                          }
+                          return null;
+                        },
+                        // 🚀 CLAVE 3: El onChanged ejecuta el recálculo
+                        onChanged: _updateCalculations,
+                      ),
+                      const SizedBox(height: 16),
+                      // ... (Display de Información Nutricional Dinámica)
+                      Text(
+                        'Información Nutricional (${currentQuantity.toStringAsFixed(0)} ${foodItem.unit}):',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDynamicMacroRow(
+                        theme,
+                        dynamicCalories: dynamicCalories,
+                        dynamicProtein: dynamicProtein,
+                        dynamicCarbs: dynamicCarbs,
+                        dynamicFat: dynamicFat,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // ⭐️ CLAVE 4: Ejecutar validate (actualiza el estado interno del form)
+                    if (formKey.currentState!.validate()) {
+                      // ⭐️ CLAVE 5: Capturar el valor FINAL del controlador al guardar
+                      final quantity = double.parse(quantityController.text);
+
+                      // Añadir al servicio y recargar la UI
+                      _mealService.addEntry(
+                        foodItem: foodItem,
+                        quantity: quantity, // ⬅️ Usa la cantidad capturada
+                        mealType: mealType,
+                        date: _selectedDate,
+                      );
+                      _loadMealEntries();
+
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: const Text('Añadir'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 📦 Nuevo Widget Auxiliar para mostrar la Fila de Macros Dinámicos
+  Widget _buildDynamicMacroRow(
+    ThemeData theme, {
+    required double dynamicCalories,
+    required double dynamicProtein,
+    required double dynamicCarbs,
+    required double dynamicFat,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMacroItem(
+          theme,
+          'Calorías',
+          dynamicCalories,
+          'kcal',
+          theme.colorScheme.primary,
+        ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildMacroItem(
+              theme,
+              'P',
+              dynamicProtein,
+              'g',
+              Colors.blue.shade700,
+            ),
+            _buildMacroItem(
+              theme,
+              'C',
+              dynamicCarbs,
+              'g',
+              Colors.green.shade700,
+            ),
+            _buildMacroItem(theme, 'G', dynamicFat, 'g', Colors.red.shade700),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // Widget auxiliar para cada ítem de macro
+  Widget _buildMacroItem(
+    ThemeData theme,
+    String label,
+    double value,
+    String unit,
+    Color color,
+  ) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ✅ Aquí la variable theme ya está definida
+        Text(
+          '$label: ',
+          style: theme.textTheme.bodyMedium!.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          '${value.toStringAsFixed(1)} $unit',
+          style: theme.textTheme.bodyMedium!.copyWith(color: color),
+        ),
+      ],
     );
   }
 
@@ -555,11 +1233,22 @@ Niveles de Actividad:
     }
 
     return Scaffold(
+      // 🚀 CAMBIO CLAVE: AppBar simple, plana y con título limpio
       appBar: AppBar(
-        title: const Text('Mi Calculadora Nutricional'),
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: theme.colorScheme.onPrimary,
+        // Título: "Nutrición"
+        title: Text(
+          'Nutrición',
+          style: theme.textTheme.headlineLarge!.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+        centerTitle: false,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation:
+            0, // ⬅️ Asegura que no hay sombra ni "sobreposición" al hacer scroll
       ),
+
       // 📝 StreamBuilder escucha los cambios en los datos del usuario en tiempo real
       body: StreamBuilder<AppUser>(
         stream: _userService.getUserData(userId),
@@ -608,11 +1297,8 @@ Niveles de Actividad:
             );
           }
 
-          // 2. ⭐️ Si los datos están completos:
-          // A. Ejecutar la lógica de cálculo y actualizar las variables de estado locales (sin setState)
           _calculateNutrition(user);
 
-          // B. Devolver la interfaz redibujada con los nuevos valores
           return _buildNutritionContent(theme);
         },
       ),
