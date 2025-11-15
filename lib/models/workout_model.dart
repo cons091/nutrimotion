@@ -3,12 +3,14 @@ class Workout {
   final String title;
   final String day;
   final List<Exercise> exercises;
+  final int restTimeSeconds;
 
   Workout({
     required this.id,
     required this.title,
     required this.day,
     required this.exercises,
+    this.restTimeSeconds = 90,
   });
 
   /// Convierte a Map para guardar en Firestore

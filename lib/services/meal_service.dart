@@ -1,102 +1,100 @@
 // lib/services/meal_service.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nutrimotion/models/food_model.dart';
 import 'package:nutrimotion/models/meal_entry_model.dart';
 
 class MealService {
-  final List<MealEntry> _mealDiary = [];
-  int _idCounter = 0;
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
 
-  // 📝 Añadir un nuevo registro de comida
-  void addEntry({
+  // Colección principal de entradas de comidas
+  CollectionReference get _mealEntriesCollection =>
+      _firestore.collection('meal_entries');
+
+  // Propiedad para obtener el ID del usuario actual de forma segura
+  String? get _currentUserId => _auth.currentUser?.uid;
+
+  // 📝 Añadir un nuevo registro de comida (AHORA ASÍNCRONO)
+  Future<void> addEntry({
     required FoodItem foodItem,
     required double quantity,
     required MealType mealType,
     required DateTime date,
-  }) {
-    // Normalizamos la fecha para la búsqueda
-    final targetDate = DateTime(date.year, date.month, date.day);
-
-    // 1. Buscar si ya existe una entrada para este alimento, tipo de comida, y fecha
-    final existingEntryIndex = _mealDiary.indexWhere((entry) {
-      final entryDate = DateTime(
-        entry.date.year,
-        entry.date.month,
-        entry.date.day,
+  }) async {
+    final userId = _currentUserId;
+    if (userId == null) {
+      // 🛑 CORRECCIÓN: Si no hay usuario, lanzamos una excepción
+      throw Exception(
+        "Usuario no autenticado. No se puede guardar la entrada.",
       );
-      return entry.foodItem.id == foodItem.id &&
-          entry.mealType == mealType &&
-          entryDate.isAtSameMomentAs(targetDate);
-    });
-
-    if (existingEntryIndex != -1) {
-      // 2. Si existe: Crear una nueva entrada con la cantidad acumulada
-      final existingEntry = _mealDiary[existingEntryIndex];
-      final newQuantity = existingEntry.quantity + quantity;
-
-      // 3. Eliminar la entrada antigua
-      _mealDiary.removeAt(existingEntryIndex);
-
-      // 4. Añadir la nueva entrada consolidada
-      final consolidatedEntry = MealEntry(
-        id: existingEntry.id, // Reutilizar el ID original
-        foodItem: foodItem,
-        quantity: newQuantity, // Cantidad sumada
-        mealType: mealType,
-        date: date,
-      );
-      _mealDiary.add(consolidatedEntry);
-    } else {
-      // 5. Si no existe: Añadir una nueva entrada normal
-      final newEntry = MealEntry(
-        id: 'e${_idCounter++}',
-        foodItem: foodItem,
-        quantity: quantity,
-        mealType: mealType,
-        date: date,
-      );
-      _mealDiary.add(newEntry);
     }
+
+    // 1. Crear el objeto MealEntry para obtener los datos
+    final newEntry = MealEntry(
+      id: '', // ID temporal
+      foodItem: foodItem,
+      quantity: quantity,
+      mealType: mealType,
+      date: date,
+    );
+
+    // 2. Crear el mapa de datos para Firestore
+    final data = newEntry.toMap();
+
+    // ✅ CLAVE para las Reglas de Seguridad: Asignar el ID del usuario al documento
+    data['userId'] = userId;
+
+    // 3. Escribir en Firestore
+    await _mealEntriesCollection.add(data);
   }
 
-  // 🗑️ Eliminar un registro (útil para la UI)
-  void removeEntry(String entryId) {
-    _mealDiary.removeWhere((entry) => entry.id == entryId);
+  // 🗑️ Eliminar un registro (AHORA ASÍNCRONO)
+  Future<void> removeEntry(String entryId) async {
+    await _mealEntriesCollection.doc(entryId).delete();
   }
 
-  void updateMealEntry(String entryId, {required double newQuantity}) {
-    // 1. Encontrar el índice de la entrada por su ID
-    final index = _mealDiary.indexWhere((entry) => entry.id == entryId);
+  // ⬆️ Actualizar un registro (AHORA ASÍNCRONO)
+  Future<void> updateMealEntry(
+    String entryId, {
+    required double newQuantity,
+  }) async {
+    await _mealEntriesCollection.doc(entryId).update({'quantity': newQuantity});
+  }
 
-    if (index != -1) {
-      final existingEntry = _mealDiary[index];
-
-      // 2. Crear una nueva entrada con la cantidad actualizada
-      final updatedEntry = MealEntry(
-        id: existingEntry.id,
-        foodItem: existingEntry.foodItem,
-        quantity: newQuantity, // ⬅️ Cantidad actualizada
-        mealType: existingEntry.mealType,
-        date: existingEntry.date,
-      );
-
-      // 3. Reemplazar la entrada antigua con la nueva entrada actualizada
-      _mealDiary[index] = updatedEntry;
+  // 📅 Obtener los registros para una fecha específica (AHORA STREAM)
+  Stream<List<MealEntry>> getEntriesForDate(DateTime date) {
+    final userId = _currentUserId;
+    if (userId == null) {
+      // Si no hay usuario, retorna un stream vacío
+      return Stream.value([]);
     }
-    // Nota: Si el ID no se encuentra, simplemente se ignora la operación.
-  }
 
-  // 📅 Obtener los registros para una fecha específica
-  List<MealEntry> getEntriesForDate(DateTime date) {
-    // Normalizamos la fecha para ignorar la hora (solo día, mes, año)
-    final targetDate = DateTime(date.year, date.month, date.day);
-    return _mealDiary.where((entry) {
-      final entryDate = DateTime(
-        entry.date.year,
-        entry.date.month,
-        entry.date.day,
-      );
-      return entryDate.isAtSameMomentAs(targetDate);
-    }).toList();
+    // Normalizar las fechas (ignorar la hora para filtrar por todo el día)
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    // El fin del día es el inicio del día siguiente
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    return _mealEntriesCollection
+        // 1. Filtra por el usuario actual
+        .where('userId', isEqualTo: userId)
+        // 2. Filtra por el rango de fechas (el día completo)
+        .where('date', isGreaterThanOrEqualTo: startOfDay)
+        .where('date', isLessThan: endOfDay)
+        // 3. Ordena por fecha (requiere el índice compuesto que creaste)
+        .orderBy('date', descending: false)
+        // 4. Obtiene un stream de cambios en tiempo real
+        .snapshots()
+        // 5. Mapea el snapshot de Firestore a una lista de objetos MealEntry
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            // Mapear cada documento a un objeto MealEntry, usando doc.id como el ID
+            return MealEntry.fromMap(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            );
+          }).toList();
+        });
   }
 }

@@ -1,3 +1,5 @@
+// lib/screens/food/nutrition_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +11,7 @@ import 'package:nutrimotion/services/meal_service.dart';
 import 'package:nutrimotion/models/meal_entry_model.dart';
 import 'package:nutrimotion/models/food_model.dart';
 import 'package:nutrimotion/models/user_model.dart';
+import 'dart:async'; // Importación necesaria para StreamSubscription
 
 class NutritionScreen extends StatefulWidget {
   const NutritionScreen({super.key});
@@ -21,7 +24,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
   // Inicialización de servicios y auth
   final _userService = UserService();
   final _auth = FirebaseAuth.instance;
-  // Formato para mostrar números grandes (ej: 2.000 kcal)
   late final NumberFormat numberFormat;
 
   // Nuevos servicios de Comida
@@ -46,7 +48,10 @@ class _NutritionScreenState extends State<NutritionScreen> {
   // Variables del Diario
   DateTime _selectedDate =
       DateTime.now(); // Para el control de la fecha del diario
-  Map<MealType, List<MealEntry>> _currentDayEntries = {}; // Entradas del día
+
+  // Lista de todas las entradas del día actual y el suscriptor del stream
+  List<MealEntry> _allEntriesForDay = [];
+  StreamSubscription? _mealSubscription;
 
   @override
   void initState() {
@@ -55,26 +60,47 @@ class _NutritionScreenState extends State<NutritionScreen> {
       '#,##0',
       'es_ES',
     ); // Formato de miles (ej: 1.650)
-    _loadMealEntries();
+    _listenToMealEntries(); // 🔄 Empezar a escuchar el Stream de Firebase
   }
 
-  // 📅 Método para cargar las entradas del día
-  void _loadMealEntries() {
-    final entries = _mealService.getEntriesForDate(_selectedDate);
-    final groupedEntries = <MealType, List<MealEntry>>{
-      MealType.desayuno: [],
-      MealType.almuerzo: [],
-      MealType.cena: [],
-      MealType.snacks: [],
-    };
+  @override
+  void dispose() {
+    _mealSubscription
+        ?.cancel(); // 🚫 Cancelar la suscripción al cerrar la pantalla
+    super.dispose();
+  }
 
-    for (var entry in entries) {
-      groupedEntries[entry.mealType]?.add(entry);
-    }
+  // 📅 Método para escuchar el Stream de entradas del día (reemplaza _loadMealEntries)
+  void _listenToMealEntries() {
+    // Cancelar la escucha anterior si existe
+    _mealSubscription?.cancel();
 
-    setState(() {
-      _currentDayEntries = groupedEntries;
-    });
+    // 1. Obtener el Stream de Firebase desde el servicio
+    final stream = _mealService.getEntriesForDate(_selectedDate);
+
+    // 2. Suscribirse al Stream
+    _mealSubscription = stream.listen(
+      (entries) {
+        // 3. Cuando llegan nuevos datos, actualizamos la lista y la UI
+        if (mounted) {
+          setState(() {
+            _allEntriesForDay = entries;
+          });
+        }
+      },
+      onError: (e) {
+        // Manejar errores de Firebase
+        if (mounted) {
+          // 🛑 CORRECCIÓN CLAVE: Usamos .toString() y un fallback
+          // para garantizar que la Snackbar reciba un String no nulo.
+          final errorMessage =
+              e?.toString() ?? 'Error desconocido al cargar el diario.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al cargar diario: $errorMessage')),
+          );
+        }
+      },
+    );
   }
 
   // 📅 Método para cambiar la fecha
@@ -89,11 +115,11 @@ class _NutritionScreenState extends State<NutritionScreen> {
       setState(() {
         _selectedDate = picked;
       });
-      _loadMealEntries(); // Recargar el diario para la nueva fecha
+      _listenToMealEntries(); // 🔄 Reiniciar la escucha para la nueva fecha
     }
   }
 
-  // Muestra el diálogo para ingresar la nueva cantidad
+  // Muestra el diálogo para ingresar la nueva cantidad (No necesita cambios funcionales aquí)
   Future<void> _openEditDialog(MealEntry entry) async {
     final TextEditingController quantityController = TextEditingController(
       // Inicializar con la cantidad actual
@@ -159,18 +185,22 @@ class _NutritionScreenState extends State<NutritionScreen> {
     );
   }
 
-  // Llama al servicio para actualizar la entrada en la base de datos
+  // Llama al servicio para actualizar la entrada en la base de datos (AHORA ASÍNCRONO)
   Future<void> _editEntry(MealEntry entry, double newQuantity) async {
     if (newQuantity <= 0) {
+      // Si la cantidad es 0 o menos, eliminar la entrada
       _removeEntry(entry.id);
       return;
     }
 
     try {
-      _mealService.updateMealEntry(entry.id, newQuantity: newQuantity);
+      // 🚀 Llamada asíncrona al servicio
+      await _mealService.updateMealEntry(entry.id, newQuantity: newQuantity);
 
-      // Recarga los datos para actualizar la interfaz
-      _loadMealEntries();
+      // ❌ Ya NO necesitamos llamar a _loadMealEntries, el Stream se encarga de recargar la UI
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Entrada actualizada correctamente.')),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al actualizar la cantidad: $e')),
@@ -178,10 +208,20 @@ class _NutritionScreenState extends State<NutritionScreen> {
     }
   }
 
-  // 🗑️ Método para eliminar y recargar
-  void _removeEntry(String entryId) {
-    _mealService.removeEntry(entryId);
-    _loadMealEntries();
+  // 🗑️ Método para eliminar (AHORA ASÍNCRONO)
+  Future<void> _removeEntry(String entryId) async {
+    try {
+      // 🚀 Llamada asíncrona al servicio
+      await _mealService.removeEntry(entryId);
+      // ❌ Ya NO necesitamos llamar a _loadMealEntries
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Entrada eliminada correctamente.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al eliminar la entrada: $e')),
+      );
+    }
   }
 
   /// -------------------------------------------------------------
@@ -567,14 +607,12 @@ Niveles de Actividad:
     double consumedCarbs = 0;
     double consumedFat = 0;
 
-    // Iterar sobre todas las entradas del día
-    for (var mealEntries in _currentDayEntries.values) {
-      for (var entry in mealEntries) {
-        consumedCalories += entry.totalCalories;
-        consumedProtein += entry.totalProtein;
-        consumedCarbs += entry.totalCarbs;
-        consumedFat += entry.totalFat;
-      }
+    // 🚀 Iterar sobre la nueva lista de estado _allEntriesForDay
+    for (var entry in _allEntriesForDay) {
+      consumedCalories += entry.totalCalories;
+      consumedProtein += entry.totalProtein;
+      consumedCarbs += entry.totalCarbs;
+      consumedFat += entry.totalFat;
     }
 
     // ------------------------------------------------------------------
@@ -647,7 +685,7 @@ Niveles de Actividad:
                   const Duration(days: 1),
                 ),
               );
-              _loadMealEntries();
+              _listenToMealEntries(); // 🔄 Usar el nuevo método de escucha
             },
           ),
 
@@ -694,7 +732,7 @@ Niveles de Actividad:
                         const Duration(days: 1),
                       ),
                     );
-                    _loadMealEntries();
+                    _listenToMealEntries(); // 🔄 Usar el nuevo método de escucha
                   },
           ),
         ],
@@ -829,7 +867,13 @@ Niveles de Actividad:
 
   Widget _buildMealSection(ThemeData theme, MealType type) {
     final title = type.toString().split('.').last.toUpperCase();
-    final entries = _currentDayEntries[type] ?? [];
+
+    // 🚀 Filtramos las entradas para este tipo de comida de la lista general
+    final entries = _allEntriesForDay
+        .where((entry) => entry.mealType == type)
+        .toList();
+
+    // final entries = _currentDayEntries[type] ?? []; // ❌ Eliminamos
     final totalSectionCalories = entries.fold(
       0.0,
       (sum, entry) => sum + entry.totalCalories,
@@ -1019,10 +1063,7 @@ Niveles de Actividad:
     // 💡 NOTA: Asume que tienes definida la clase FoodSearchScreen
     final selectedFood = await Navigator.of(context).push(
       MaterialPageRoute<FoodItem>(
-        builder: (context) => FoodSearchScreen(
-          // ⚠️ Necesitamos un constructor que permita devolver un resultado.
-          // Por ahora, solo navegamos y simularemos la adición.
-        ),
+        builder: (context) => const FoodSearchScreen(),
       ),
     );
 
@@ -1033,7 +1074,7 @@ Niveles de Actividad:
     }
   }
 
-  /// 🍚 Muestra el diálogo para ingresar la cantidad consumida.
+  /// 🍚 Muestra el diálogo para ingresar la cantidad consumida. (AHORA ASÍNCRONO)
   void _showQuantityDialog(FoodItem foodItem, MealType mealType) {
     final formKey = GlobalKey<FormState>();
     final theme = Theme.of(context);
@@ -1122,22 +1163,44 @@ Niveles de Actividad:
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
+                    // 🚀 Hacemos el callback ASÍNCRONO
                     // ⭐️ CLAVE 4: Ejecutar validate (actualiza el estado interno del form)
                     if (formKey.currentState!.validate()) {
                       // ⭐️ CLAVE 5: Capturar el valor FINAL del controlador al guardar
                       final quantity = double.parse(quantityController.text);
 
-                      // Añadir al servicio y recargar la UI
-                      _mealService.addEntry(
-                        foodItem: foodItem,
-                        quantity: quantity, // ⬅️ Usa la cantidad capturada
-                        mealType: mealType,
-                        date: _selectedDate,
-                      );
-                      _loadMealEntries();
+                      // 🛑 CLAVE 6: Añadir el try-catch para manejar el error de Firebase
+                      try {
+                        await _mealService.addEntry(
+                          foodItem: foodItem,
+                          quantity: quantity, // ⬅️ Usa la cantidad capturada
+                          mealType: mealType,
+                          date: _selectedDate,
+                        );
 
-                      Navigator.pop(context);
+                        // Éxito: Cerrar diálogo y notificar
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Comida añadida exitosamente.'),
+                          ),
+                        );
+                        // El Stream de Firebase actualizará automáticamente la lista.
+                      } catch (e) {
+                        // Fracaso: Notificar y cerrar diálogo si no está cerrado
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.pop(context);
+                        }
+                        // Usamos e.toString() para asegurar que no se pase un objeto null o complejo.
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Error al añadir comida: ${e.toString()}',
+                            ),
+                          ),
+                        );
+                      }
                     }
                   },
                   child: const Text('Añadir'),
@@ -1258,9 +1321,10 @@ Niveles de Actividad:
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Text('Error al cargar datos: ${snapshot.error}'),
-            );
+            // 🛑 CORRECCIÓN DE SEGURIDAD (Si el error viene del stream de usuario)
+            final errorMessage =
+                snapshot.error?.toString() ?? 'Error desconocido del usuario.';
+            return Center(child: Text('Error al cargar datos: $errorMessage'));
           }
 
           final user = snapshot.data;

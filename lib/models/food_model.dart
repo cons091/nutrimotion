@@ -25,8 +25,8 @@ class FoodItem {
   factory FoodItem.fromMap(Map<String, dynamic> map, String id) {
     return FoodItem(
       id: id,
-      name: map['name'] ?? 'Alimento Desconocido',
-      unit: map['unit'] ?? 'g',
+      name: (map['name'] as String?) ?? 'Alimento Desconocido',
+      unit: (map['unit'] as String?) ?? 'g',
       servingSize: (map['servingSize'] as num?)?.toDouble() ?? 100.0,
       calories: (map['calories'] as num?)?.toDouble() ?? 0.0,
       protein: (map['protein'] as num?)?.toDouble() ?? 0.0,

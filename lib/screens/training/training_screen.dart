@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nutrimotion/screens/training/workout_form_screen.dart';
 import 'package:nutrimotion/screens/training/workout_list_screen.dart';
-import 'package:nutrimotion/screens/training/empty_workout_screen.dart';
 import 'package:nutrimotion/screens/training/workout_session_screen.dart'; // Usar la Session Screen para el entrenamiento vacío
 
 class TrainingScreen extends StatelessWidget {

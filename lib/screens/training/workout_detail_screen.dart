@@ -69,13 +69,6 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       appBar: AppBar(
         title: Text(_currentWorkout.title),
         backgroundColor: theme.colorScheme.surfaceContainer,
-        actions: [
-          IconButton(
-            onPressed: _editWorkout,
-            icon: const Icon(Icons.edit_note_rounded),
-            tooltip: "Editar rutina",
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Padding(

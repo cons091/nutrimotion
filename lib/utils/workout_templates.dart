@@ -7,6 +7,7 @@ List<SeriesEntry> generateSeries(int count, int reps) {
 
 class WorkoutTemplates {
   static List<Workout> getTemplates(String day) {
+    const int defaultRest = 90;
     switch (day) {
       case "Piernas":
         return [
@@ -23,6 +24,7 @@ class WorkoutTemplates {
               Exercise(name: "Prensa", series: generateSeries(3, 10)),
               Exercise(name: "Zancadas", series: generateSeries(3, 12)),
             ],
+            restTimeSeconds: defaultRest,
           ),
           Workout(
             id: "template_piernas_2",
@@ -40,6 +42,7 @@ class WorkoutTemplates {
                 series: generateSeries(3, 15),
               ),
             ],
+            restTimeSeconds: defaultRest,
           ),
         ];
 
@@ -57,6 +60,7 @@ class WorkoutTemplates {
               ),
               Exercise(name: "Fondos", series: generateSeries(3, 10)),
             ],
+            restTimeSeconds: defaultRest,
           ),
           Workout(
             id: "template_pecho_2",
@@ -77,6 +81,7 @@ class WorkoutTemplates {
               ),
               Exercise(name: "Cruces en polea", series: generateSeries(3, 15)),
             ],
+            restTimeSeconds: defaultRest,
           ),
         ];
 
@@ -97,6 +102,7 @@ class WorkoutTemplates {
               ),
               Exercise(name: "Remo con barra", series: generateSeries(4, 8)),
             ],
+            restTimeSeconds: defaultRest,
           ),
           Workout(
             id: "template_espalda_2",
@@ -114,6 +120,7 @@ class WorkoutTemplates {
                 series: generateSeries(3, 12),
               ),
             ],
+            restTimeSeconds: defaultRest,
           ),
         ];
 
@@ -128,6 +135,7 @@ class WorkoutTemplates {
               Exercise(name: "Push Press", series: generateSeries(3, 5)),
               Exercise(name: "Remo al mentón", series: generateSeries(3, 8)),
             ],
+            restTimeSeconds: defaultRest,
           ),
           Workout(
             id: "template_hombros_2",
@@ -148,6 +156,7 @@ class WorkoutTemplates {
               ),
               Exercise(name: "Pájaros", series: generateSeries(3, 15)),
             ],
+            restTimeSeconds: defaultRest,
           ),
         ];
 
@@ -165,6 +174,7 @@ class WorkoutTemplates {
               ),
               Exercise(name: "Curl martillo", series: generateSeries(4, 8)),
             ],
+            restTimeSeconds: defaultRest,
           ),
           Workout(
             id: "template_brazos_2",
@@ -182,6 +192,7 @@ class WorkoutTemplates {
                 series: generateSeries(3, 15),
               ),
             ],
+            restTimeSeconds: defaultRest,
           ),
         ];
 
@@ -197,6 +208,7 @@ class WorkoutTemplates {
               Exercise(name: "Peso muerto", series: generateSeries(3, 5)),
               Exercise(name: "Press militar", series: generateSeries(3, 6)),
             ],
+            restTimeSeconds: defaultRest,
           ),
           Workout(
             id: "template_fullbody_2",
@@ -217,6 +229,7 @@ class WorkoutTemplates {
               ),
               Exercise(name: "Dominadas", series: generateSeries(3, 10)),
             ],
+            restTimeSeconds: defaultRest,
           ),
         ];
 

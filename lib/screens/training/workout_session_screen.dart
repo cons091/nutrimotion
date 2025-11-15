@@ -5,6 +5,7 @@ import 'package:nutrimotion/models/workout_model.dart';
 import 'package:nutrimotion/services/training_session_service.dart';
 import 'package:flutter/foundation.dart' show kDebugMode; // Para debugPrint
 import 'package:intl/intl.dart'; // Necesario para formatear el número de peso
+import 'package:nutrimotion/screens/training/group_selection_screen.dart';
 
 // ======================================================================
 // WIDGET PRINCIPAL
@@ -218,10 +219,8 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
   Timer? restTimer;
   Duration restTime = Duration.zero;
   bool isResting = false;
-  final Duration defaultRestDuration = const Duration(
-    minutes: 1,
-    seconds: 30,
-  ); // 90s
+
+  late Duration currentRestDuration;
 
   final _trainingService = TrainingSessionService();
 
@@ -248,8 +247,119 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
         series.weight ??= 0;
       }
     }
-
+    currentRestDuration = Duration(
+      seconds: widget.initialWorkout?.restTimeSeconds ?? 90,
+    );
     if (widget.startAutomatically) _startTimer();
+  }
+
+  void _editWorkoutDetails() {
+    // Para editar el título
+    TextEditingController titleCtrl = TextEditingController(
+      text: workout.title,
+    );
+
+    // Opciones de descanso comunes (en segundos)
+    final List<int> restOptionsSeconds = [30, 45, 60, 90, 120, 150, 180, 240];
+
+    // Usamos un valor temporal inicializado con la duración actual
+    int tempSelectedRestSeconds = currentRestDuration.inSeconds;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('✏️ Editar Configuración'),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setStateInDialog) {
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Edición del Título
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: "Nombre de la Rutina",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Tiempo de Descanso:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 2. Edición del Tiempo de Descanso (Dropdown)
+                    DropdownButton<int>(
+                      isExpanded: true,
+                      value: tempSelectedRestSeconds,
+                      items: restOptionsSeconds.map((int value) {
+                        return DropdownMenuItem<int>(
+                          value: value,
+                          child: Text(
+                            _formatRestTime(Duration(seconds: value)),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (int? newValue) {
+                        if (newValue != null) {
+                          setStateInDialog(() {
+                            tempSelectedRestSeconds = newValue;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Seleccionado: ${_formatRestTime(Duration(seconds: tempSelectedRestSeconds))}',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('CANCELAR'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            FilledButton(
+              child: const Text('GUARDAR'),
+              onPressed: () {
+                // 🚀 APLICAR CAMBIOS
+                setState(() {
+                  // 1. Actualizar título de la rutina
+                  workout = Workout(
+                    id: workout.id,
+                    title: titleCtrl.text.trim(),
+                    day: workout.day,
+                    exercises: workout.exercises,
+                    restTimeSeconds:
+                        tempSelectedRestSeconds, // El modelo está actualizado
+                  );
+
+                  // 2. Actualizar el tiempo de descanso en la sesión
+                  currentRestDuration = Duration(
+                    seconds: tempSelectedRestSeconds,
+                  );
+
+                  // Si el descanso estaba activo, lo reiniciamos con la nueva duración
+                  if (isResting) {
+                    _stopRestTimer(); // Cancela el viejo timer
+                    _startRestTimer(); // Inicia uno nuevo con la nueva duración
+                  }
+                });
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _startTimer() {
@@ -271,7 +381,8 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
 
     setState(() {
       isResting = true;
-      restTime = defaultRestDuration;
+      // 🚀 CAMBIO 3: Usamos la variable de estado configurable
+      restTime = currentRestDuration;
     });
 
     restTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -287,8 +398,9 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          // 🚀 CAMBIO 4: Mostrar el tiempo configurable
           content: Text(
-            "Descanso iniciado: ${_formatRestTime(defaultRestDuration)} 🧘",
+            "Descanso iniciado: ${_formatRestTime(currentRestDuration)} 🧘",
           ),
           backgroundColor: Theme.of(context).colorScheme.tertiary,
         ),
@@ -317,86 +429,210 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
   }
 
   // Método para agregar ejercicio (mejorado con validación y Material 3)
-  void _addExercise() {
-    TextEditingController nameCtrl = TextEditingController();
-    TextEditingController repsCtrl = TextEditingController(text: "10");
-    TextEditingController weightCtrl = TextEditingController(text: "0");
+  // En _WorkoutSessionScreenState
+
+  void _addExercise() async {
+    // 1. **Paso de Selección:** Usamos GroupSelectionScreen como punto de partida
+    final exerciseName = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        // 🚀 PRIMERO VAMOS A SELECCIONAR EL GRUPO, LUEGO EL EJERCICIO
+        builder: (_) => const GroupSelectionScreen(),
+      ),
+    );
+
+    if (exerciseName == null) return; // Si no seleccionó nada, salimos
+
+    // La lógica del formulario que pasaste se lanza ahora:
+    // Controladores temporales para el diálogo de configuración
+    List<TextEditingController> repsControllers = [
+      TextEditingController(text: '8'),
+    ];
+    List<TextEditingController> weightControllers = [
+      TextEditingController(text: '0'),
+    ];
+    List<SeriesEntry> tempSeries = [SeriesEntry(reps: 8, weight: 0)];
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("➕ Agregar Ejercicio"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: "Nombre del Ejercicio",
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: repsCtrl,
-              decoration: const InputDecoration(
-                labelText: "Repeticiones (Mín 1)",
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: weightCtrl,
-              decoration: const InputDecoration(labelText: "Peso (kg) (Mín 0)"),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancelar"),
-          ),
-          FilledButton(
-            onPressed: () {
-              final name = nameCtrl.text.trim();
-              final reps = int.tryParse(repsCtrl.text) ?? 0;
-              final weight = double.tryParse(weightCtrl.text) ?? 0;
-
-              if (name.isEmpty || reps <= 0) {
-                // Permitimos peso 0
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "El Nombre y las Repeticiones deben ser mayores a 0.",
-                      ),
-                      backgroundColor: Colors.redAccent,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: Text(
+                "Configurar ${exerciseName as String}",
+              ), // Aseguramos que es String
+              contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Define las repeticiones y el peso para cada serie:",
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                  );
-                }
-                return;
-              }
-
-              setState(() {
-                workout.exercises.add(
-                  Exercise(
-                    name: name,
-                    series: [
-                      SeriesEntry(
-                        reps: reps,
-                        weight: weight,
-                        isCompleted: false,
+                    const SizedBox(height: 16),
+                    // Lista de series
+                    Column(
+                      children: List.generate(tempSeries.length, (i) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            children: [
+                              Container(
+                                alignment: Alignment.center,
+                                width: 24,
+                                child: Text(
+                                  "S${i + 1}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: repsControllers[i],
+                                  decoration: const InputDecoration(
+                                    labelText: "Reps",
+                                    isDense: true,
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: weightControllers[i],
+                                  decoration: const InputDecoration(
+                                    labelText: "Peso (kg)",
+                                    isDense: true,
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              // Botón de eliminar serie
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () {
+                                  if (tempSeries.length > 1) {
+                                    setStateDialog(() {
+                                      repsControllers.removeAt(i);
+                                      weightControllers.removeAt(i);
+                                      tempSeries.removeAt(i);
+                                    });
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Debes tener al menos 1 serie.",
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ),
+                    // Botón para añadir serie
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setStateDialog(() {
+                            repsControllers.add(
+                              TextEditingController(text: '8'),
+                            );
+                            weightControllers.add(
+                              TextEditingController(text: '0'),
+                            );
+                            tempSeries.add(SeriesEntry(reps: 8, weight: 0));
+                          });
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text("Añadir serie"),
                       ),
-                    ],
-                  ),
-                );
-              });
-              Navigator.pop(context);
-            },
-            child: const Text("Agregar"),
-          ),
-        ],
-      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    // Limpiar controladores al cancelar
+                    for (var c in repsControllers) c.dispose();
+                    for (var c in weightControllers) c.dispose();
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Cancelar"),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final newSeries = <SeriesEntry>[];
+                    bool hasInvalidValue = false;
+
+                    // 🚀 VALIDACIÓN DE CERO: REUTILIZADA DEL FORMULARIO
+                    for (var i = 0; i < repsControllers.length; i++) {
+                      final reps = int.tryParse(repsControllers[i].text) ?? 0;
+                      final weight =
+                          double.tryParse(weightControllers[i].text) ?? 0;
+
+                      // Si quieres que el peso pueda ser 0 (peso corporal), cambia `weight <= 0`
+                      // a solo verificar que las reps sean > 0.
+                      if (reps <= 0 || weight <= 0) {
+                        hasInvalidValue = true;
+                        break;
+                      }
+                      newSeries.add(SeriesEntry(reps: reps, weight: weight));
+                    }
+                    // 🎯 FIN DE VALIDACIÓN
+
+                    if (hasInvalidValue) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "❌ Las repeticiones y el peso deben ser mayores a 0 en todas las series.",
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
+                    // 🚀 AÑADIR A LA SESIÓN (Usamos setState de la clase principal)
+                    setState(() {
+                      workout.exercises.add(
+                        Exercise(name: exerciseName, series: newSeries),
+                      );
+                    });
+
+                    // Limpiar controladores y cerrar diálogo
+                    for (var c in repsControllers) c.dispose();
+                    for (var c in weightControllers) c.dispose();
+
+                    if (mounted) Navigator.pop(context);
+                  },
+                  child: const Text("Añadir Ejercicio"),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -468,8 +704,17 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
   String _formatTime(Duration d) =>
       "${d.inHours.toString().padLeft(2, '0')}:${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}";
 
-  String _formatRestTime(Duration d) =>
-      "${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}";
+  String _formatRestTime(Duration d, {bool showSecondsOnly = false}) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(1, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+
+    if (showSecondsOnly) {
+      // Para el botón de Descanso: "1:30"
+      return '$minutes:$seconds';
+    }
+    // Para diálogos: "1 min 30 seg"
+    return '$minutes min $seconds seg';
+  }
 
   @override
   void dispose() {
@@ -487,6 +732,14 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
       appBar: AppBar(
         title: Text(workout.title),
         backgroundColor: theme.colorScheme.surfaceContainerHigh,
+        actions: [
+          // 🚀 AÑADIR BOTÓN DE EDICIÓN AQUÍ
+          IconButton(
+            icon: const Icon(Icons.edit_note_rounded),
+            onPressed: _editWorkoutDetails,
+            tooltip: 'Editar nombre y descanso',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -498,6 +751,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    const SizedBox(width: 15),
                     Icon(
                       isResting
                           ? Icons.snooze_rounded
@@ -552,7 +806,10 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                         isResting ? Icons.stop_rounded : Icons.timer_rounded,
                       ),
                       label: Text(
-                        isResting ? "CANCELAR DESCANSO" : "DESCANSO (90s)",
+                        // 🚀 USO DEL HELPER FORMATO COMPACTO
+                        isResting
+                            ? "CANCELAR DESCANSO"
+                            : "DESCANSO (${_formatRestTime(currentRestDuration, showSecondsOnly: true)})",
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isResting
