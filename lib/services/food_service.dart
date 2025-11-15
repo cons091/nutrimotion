@@ -1,94 +1,129 @@
-// lib/services/food_service.dart
-
-import 'package:nutrimotion/models/food_model.dart';
-import 'dart:async'; // Necesario para Future
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/food_model.dart';
 
 class FoodService {
-  // 🍎 Base de Datos de Alimentos Estática (100g de porción)
-  static final List<FoodItem> _staticFoodDatabase = [
-    FoodItem(
-      id: 'f1',
-      name: 'Pechuga de Pollo',
-      calories: 165,
-      protein: 31.0,
-      carbs: 0.0,
-      fat: 3.6,
-    ),
-    FoodItem(
-      id: 'f2',
-      name: 'Arroz Blanco',
-      calories: 130,
-      protein: 2.7,
-      carbs: 28.0,
-      fat: 0.3,
-    ),
-    FoodItem(
-      id: 'f3',
-      name: 'Manzana',
-      calories: 52,
-      protein: 0.3,
-      carbs: 14.0,
-      fat: 0.2,
-    ),
-    FoodItem(
-      id: 'f4',
-      name: 'Aceite de Oliva Extra Virgen',
-      calories: 884,
-      protein: 0.0,
-      carbs: 0.0,
-      fat: 100.0,
-    ),
-    FoodItem(
-      id: 'f5',
-      name: 'Huevo (cocido)',
-      calories: 155,
-      protein: 13.0,
-      carbs: 1.1,
-      fat: 10.6,
-    ),
-    FoodItem(
-      id: 'f6',
-      name: 'Avena',
-      calories: 389,
-      protein: 16.9,
-      carbs: 66.3,
-      fat: 6.9,
-    ),
-    FoodItem(
-      id: 'f7',
-      name: 'Brócoli (cocido)',
-      calories: 35,
-      protein: 2.4,
-      carbs: 7.2,
-      fat: 0.4,
-    ),
-    FoodItem(
-      id: 'f8',
-      name: 'Salmón (cocido)',
-      calories: 208,
-      protein: 20.4,
-      carbs: 0.0,
-      fat: 13.4,
-    ),
-  ];
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+  final String collectionName = 'foods';
 
-  /// Obtiene todos los alimentos de la base de datos (simulando una llamada a API/DB)
-  Future<List<FoodItem>> getAllFoods() async {
-    // Simular un retraso de red
-    await Future.delayed(const Duration(milliseconds: 500));
-    return _staticFoodDatabase;
+  // 1. Método para la BÚSQUEDA (Implementa la lógica central)
+  // (Este código ya es correcto y usa la doble consulta)
+  Future<List<FoodItem>> searchFoods(String query) async {
+    final userId = _auth.currentUser?.uid;
+    final sanitizedQuery = query.trim().toLowerCase();
+
+    // 1. Consulta 1: Alimentos Públicos (isPublic == true)
+    Query publicQuery = _firestore
+        .collection(collectionName)
+        .where(
+          'isPublic',
+          isEqualTo: true,
+        ); // Filtro que coincide con la regla 1
+
+    // 2. Consulta 2: Alimentos Privados del Usuario (creatorId == userId)
+    // Usamos 'null' como placeholder si no hay userId para evitar un error de consulta.
+    Query privateQuery = _firestore
+        .collection(collectionName)
+        .where(
+          'creatorId',
+          isEqualTo: userId ?? 'null_placeholder',
+        ); // Filtro que coincide con la regla 2
+
+    // Aplicar filtros de búsqueda por nombre si la consulta no está vacía
+    if (sanitizedQuery.isNotEmpty && sanitizedQuery.length >= 2) {
+      publicQuery = publicQuery.orderBy('name').startAt([sanitizedQuery]).endAt(
+        [sanitizedQuery + '\uf8ff'],
+      );
+
+      privateQuery = privateQuery
+          .orderBy('name')
+          .startAt([sanitizedQuery])
+          .endAt([sanitizedQuery + '\uf8ff']);
+    } else {
+      // Si la búsqueda está vacía (getAllFoods), solo ordenamos y limitamos
+      publicQuery = publicQuery.orderBy('name').limit(25);
+      privateQuery = privateQuery.orderBy('name').limit(25);
+    }
+
+    try {
+      // Ejecutar ambas consultas en paralelo
+      final publicSnapshot = await publicQuery.get();
+      final privateSnapshot = (userId != null)
+          ? await privateQuery.get()
+          : null;
+
+      // Mapear resultados
+      final publicFoods = publicSnapshot.docs
+          .map(
+            (doc) =>
+                FoodItem.fromMap(doc.data() as Map<String, dynamic>, doc.id),
+          )
+          .toList();
+
+      final privateFoods =
+          privateSnapshot?.docs
+              .map(
+                (doc) => FoodItem.fromMap(
+                  doc.data() as Map<String, dynamic>,
+                  doc.id,
+                ),
+              )
+              .toList() ??
+          [];
+
+      // Fusionar las listas y eliminar duplicados
+      final allFoods = <String, FoodItem>{};
+      for (var food in publicFoods) {
+        allFoods[food.id] = food;
+      }
+      for (var food in privateFoods) {
+        allFoods[food.id] = food;
+      }
+
+      return allFoods.values.toList();
+    } catch (e) {
+      print('❌ Error en searchFoods (Revisa los Índices Compuestos): $e');
+      throw Exception(
+        'Error al buscar alimentos. Revisa los índices de Firestore: $e',
+      );
+    }
   }
 
-  /// Busca alimentos que coincidan con el término de búsqueda (case insensitive)
-  Future<List<FoodItem>> searchFoods(String query) async {
-    if (query.isEmpty) {
-      return getAllFoods();
-    }
-    await Future.delayed(const Duration(milliseconds: 300));
+  // 2. Método para la CARGA INICIAL (Implementa el getAllFoods)
+  Future<List<FoodItem>> getAllFoods() {
+    // Sigue funcionando igual (llama a searchFoods con query vacío)
+    return searchFoods('');
+  }
 
-    final normalizedQuery = query.toLowerCase();
-    return _staticFoodDatabase
-        .where((food) => food.name.toLowerCase().contains(normalizedQuery))
-        .toList();
+  // 3. Método para la creación de alimento personalizado (Sin cambios)
+  Future<void> addCustomFood({
+    required String name,
+    required double calories,
+    required double protein,
+    required double carbs,
+    required double fat,
+    String unit = 'g',
+    double servingSize = 100.0,
+  }) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) {
+      throw Exception('Usuario no autenticado.');
+    }
+
+    final newFoodItem = FoodItem(
+      id: '',
+      name: name,
+      unit: unit,
+      servingSize: servingSize,
+      calories: calories,
+      protein: protein,
+      carbs: carbs,
+      fat: fat,
+      creatorId: userId,
+      isPublic: false,
+    );
+
+    await _firestore.collection(collectionName).add(newFoodItem.toMap());
   }
 }

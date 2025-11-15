@@ -9,6 +9,9 @@ class FoodItem {
   final double protein; // Gramos de proteína por servingSize
   final double carbs; // Gramos de carbohidratos por servingSize
   final double fat; // Gramos de grasa por servingSize
+  final String?
+  creatorId; // Nuevo: UID del usuario creador (null si es público/API)
+  final bool isPublic;
 
   FoodItem({
     required this.id,
@@ -19,6 +22,8 @@ class FoodItem {
     required this.protein,
     required this.carbs,
     required this.fat,
+    this.creatorId,
+    this.isPublic = false,
   });
 
   // Método para crear un objeto FoodItem desde un mapa (útil para JSON o Firestore)
@@ -45,6 +50,8 @@ class FoodItem {
       'protein': protein,
       'carbs': carbs,
       'fat': fat,
+      'creatorId': creatorId,
+      'isPublic': isPublic,
     };
   }
 }

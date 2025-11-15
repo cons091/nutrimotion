@@ -20,9 +20,12 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   @override
   void initState() {
     super.initState();
-    // Iniciar con todos los alimentos al abrir la pantalla
+    // 💡 La inicialización ya se realizó.
+    // Ahora solo cargamos los alimentos directamente.
     _searchFuture = _foodService.getAllFoods();
   }
+
+  // ❌ ELIMINADO: El método _initializeAndLoadFoods() ya no es necesario.
 
   @override
   void dispose() {
@@ -84,6 +87,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 }
 
                 if (snapshot.hasError) {
+                  // Muestra el error de permisos aquí
                   return Center(
                     child: Text('Error al cargar alimentos: ${snapshot.error}'),
                   );
