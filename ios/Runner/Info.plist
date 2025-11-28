@@ -45,5 +45,19 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+    <!-- 🟢 AÑADIR ESTAS CLAVES AQUÍ -->
+    <!-- Descripción para acceder a la galería de fotos -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Necesitamos acceso a tu galería para que puedas seleccionar una foto de perfil.</string>
+    
+    <!-- Descripción para acceder a la cámara -->
+    <key>NSCameraUsageDescription</key>
+    <string>Necesitamos acceso a tu cámara para que puedas tomar una foto de perfil.</string>
+
+    <!-- Descripción para acceder al micrófono (opcional, a veces requerido por plugins de cámara) -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Necesitamos acceso al micrófono para grabar videos.</string>
+
 </dict>
 </plist>

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart'; // Para kIsWeb
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Necesario para TextInputFormatter
 import 'package:image_picker/image_picker.dart';
@@ -23,11 +24,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final _pesoController = TextEditingController();
   final _alturaController = TextEditingController();
-  final _edadController =
-      TextEditingController(); // 🌟 NUEVO: Controlador para Edad
+  final _edadController = TextEditingController();
 
   String? _objetivo;
-  String? _sexo; // 🌟 NUEVO: Variable para Sexo
+  String? _sexo;
   String? _photoUrl;
 
   final picker = ImagePicker();
@@ -42,7 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _pesoController.dispose();
     _alturaController.dispose();
-    _edadController.dispose(); // 🌟 DISPOSE: Edad
+    _edadController.dispose();
     super.dispose();
   }
 
@@ -52,81 +52,169 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     setState(() => _isLoading = true);
 
-    final doc = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(currentUser.uid)
-        .get();
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(currentUser.uid)
+          .get();
 
-    if (doc.exists) {
-      final data = doc.data();
-      if (data != null) {
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null) {
+          setState(() {
+            _userData = AppUser.fromMap(data);
+            _pesoController.text = _userData?.peso?.toStringAsFixed(1) ?? '';
+            _alturaController.text =
+                _userData?.altura?.toStringAsFixed(0) ?? '';
+
+            _edadController.text = _userData?.edad?.toString() ?? '';
+            _sexo = _userData?.sexo;
+
+            _objetivo = _userData?.objetivo ?? "Mantenimiento";
+            _photoUrl = data["photoUrl"];
+            _isLoading = false;
+          });
+        }
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      debugPrint("Error cargando perfil: $e");
+    }
+  }
+
+  Future<void> _uploadImage(XFile? pickedFile) async {
+    if (pickedFile == null) return;
+
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final file = File(pickedFile.path);
+      // Referencia al storage: profile_photos/UID_USUARIO.jpg
+      final storageRef = FirebaseStorage.instance.ref().child(
+        'profile_photos/${currentUser.uid}.jpg',
+      );
+
+      // 1. Subir el archivo
+      await storageRef.putFile(file);
+
+      // 2. OBTENER LA NUEVA URL DE DESCARGA (¡CRÍTICO!)
+      final newPhotoUrl = await storageRef.getDownloadURL();
+
+      // 3. Actualizar Firestore con la nueva URL
+      final userDocRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid);
+
+      // Actualizamos solo el campo photoUrl
+      await userDocRef.update({'photoUrl': newPhotoUrl});
+
+      // 4. Actualizar el estado local para forzar el redibujado
+      if (mounted) {
         setState(() {
-          _userData = AppUser.fromMap(data);
-          _pesoController.text =
-              _userData?.peso?.toStringAsFixed(1) ??
-              ''; // Mostrar con 1 decimal
-          _alturaController.text =
-              _userData?.altura?.toStringAsFixed(0) ??
-              ''; // Mostrar sin decimal
-
-          // 🌟 CARGAR EDAD Y SEXO
-          _edadController.text = _userData?.edad?.toString() ?? '';
-          _sexo = _userData?.sexo;
-
-          _objetivo = _userData?.objetivo ?? "Mantenimiento";
-          _photoUrl = data["photoUrl"];
+          _photoUrl = newPhotoUrl; // 👈 Usamos la URL recién obtenida
           _isLoading = false;
         });
       }
-    } else {
-      setState(() => _isLoading = false);
+
+      // Opcional: Mostrar un mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Foto de perfil actualizada con éxito.')),
+      );
+    } catch (e) {
+      print('Error al subir la imagen: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al subir la foto: ${e.toString()}')),
+      );
     }
   }
 
   Future<void> _pickImage() async {
-    // ... (Tu función _pickImage se mantiene igual)
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 50,
-    );
-    if (pickedFile == null) return;
-
-    setState(() => _isLoading = true);
-
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      final storageRef = FirebaseStorage.instance.ref().child(
-        'profile_photos/${currentUser!.uid}.jpg',
+      // 1. Seleccionar imagen (Galería)
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 50,
+        maxWidth: 800,
       );
 
-      await storageRef.putFile(File(pickedFile.path));
+      if (pickedFile == null) return;
+
+      setState(() => _isLoading = true);
+
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) throw Exception("Usuario no autenticado");
+
+      // 2. Referencia al Storage
+      final storageRef = FirebaseStorage.instance.ref().child(
+        'profile_photos/${currentUser.uid}.jpg',
+      );
+
+      // 3. Subir el archivo (Lógica Compatible Web/Móvil)
+      if (kIsWeb) {
+        // En WEB: Usamos putData con los bytes
+        final bytes = await pickedFile.readAsBytes();
+        await storageRef.putData(
+          bytes,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+      } else {
+        // En MÓVIL: Usamos putFile con el objeto File
+        await storageRef.putFile(File(pickedFile.path));
+      }
+
+      // 4. Obtener URL
       final downloadUrl = await storageRef.getDownloadURL();
 
+      // 5. Actualizar Firestore
       await FirebaseFirestore.instance
           .collection("users")
           .doc(currentUser.uid)
           .update({"photoUrl": downloadUrl});
 
-      setState(() {
-        _photoUrl = downloadUrl;
-        _isLoading = false;
-      });
-
       if (mounted) {
+        setState(() {
+          _photoUrl = downloadUrl;
+          _isLoading = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text("Foto actualizada 📸"),
+            content: const Text("Foto actualizada correctamente 📸"),
             backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
       }
     } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() => _isLoading = false);
+
+        String message = "Error al subir la foto.";
+        if (e is FirebaseException) {
+          message += "\nCódigo: ${e.code}";
+          if (e.code == 'permission-denied') {
+            message += "\nPermiso denegado: Revisa las reglas de Storage.";
+          }
+        } else {
+          message += "\n$e";
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Error al subir la foto"),
+          SnackBar(
+            content: Text(message),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -137,19 +225,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
-    // Validación y Parseo de datos
     final peso = double.tryParse(_pesoController.text);
     final altura = double.tryParse(_alturaController.text);
-    final edad = int.tryParse(_edadController.text); // 🌟 NUEVO: Parsear Edad
+    final edad = int.tryParse(_edadController.text);
 
     if (peso == null ||
         altura == null ||
-        edad == null || // 🌟 VALIDAR EDAD
+        edad == null ||
         peso <= 0 ||
         altura <= 0 ||
-        edad < 15 || // Validación de edad mínima razonable
-        _sexo == null) // 🌟 VALIDAR SEXO
-    {
+        edad < 10 ||
+        _sexo == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -171,11 +257,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             "peso": peso,
             "altura": altura,
             "objetivo": _objetivo,
-            "edad": edad, // 🌟 GUARDAR EDAD
-            "sexo": _sexo, // 🌟 GUARDAR SEXO
+            "edad": edad,
+            "sexo": _sexo,
           });
 
-      // Recargar datos para reflejar los cambios guardados
       await _loadUserData();
 
       setState(() {
@@ -193,8 +278,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Error al actualizar los datos"),
+          SnackBar(
+            content: Text("Error al actualizar los datos: $e"),
             backgroundColor: Colors.red,
           ),
         );
@@ -202,7 +287,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Widget auxiliar para construir un ListTile limpio (se mantiene igual)
+  // --- WIDGETS AUXILIARES ---
+
   Widget _buildInfoTile(
     BuildContext context,
     String title,
@@ -223,15 +309,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Widget auxiliar para construir campos de edición (se mantiene igual, pero lo usamos para Edad)
   Widget _buildEditableTile(
     BuildContext context,
     TextEditingController controller,
     String label,
     IconData icon,
     String unit,
-    TextInputType keyboardType, // 🌟 AÑADIDO: Tipo de teclado
-    List<TextInputFormatter>? formatters, // 🌟 AÑADIDO: Formatters
+    TextInputType keyboardType,
+    List<TextInputFormatter>? formatters,
   ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -260,7 +345,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // 🌟 NUEVO WIDGET: Campo de Edición para Sexo (Dropdown)
   Widget _buildSexoEditableTile(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -284,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    if (_isLoading || _userData == null) {
+    if (_isLoading) {
       return Scaffold(
         appBar: AppBar(
           title: const Text("Mi Perfil"),
@@ -293,6 +377,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+
+    final email =
+        _userData?.email ??
+        FirebaseAuth.instance.currentUser?.email ??
+        "Usuario";
+    final peso = _userData?.peso?.toStringAsFixed(1) ?? '-';
+    final altura = _userData?.altura?.toStringAsFixed(0) ?? '-';
+    final edad = _userData?.edad?.toString() ?? '-';
+    final sexo = _userData?.sexo ?? '-';
+    final objetivo = _userData?.objetivo ?? '-';
 
     return Scaffold(
       appBar: AppBar(
@@ -304,7 +398,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 🖼️ HEADER DE PERFIL Y FOTO (se mantiene igual)
+            // 🖼️ HEADER DE PERFIL Y FOTO
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
@@ -313,7 +407,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Stack(
                     children: [
-                      // Avatar
                       CircleAvatar(
                         radius: 50,
                         backgroundColor: theme.colorScheme.primaryContainer,
@@ -328,7 +421,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               )
                             : null,
                       ),
-                      // Botón de Carga de Foto
                       Positioned(
                         bottom: 0,
                         right: 0,
@@ -348,9 +440,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Correo
                   Text(
-                    _userData!.email ?? "Usuario sin correo",
+                    email,
                     style: theme.textTheme.titleMedium!.copyWith(
                       color: theme.colorScheme.onPrimary.withOpacity(0.9),
                     ),
@@ -395,7 +486,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : _buildInfoTile(
                             context,
                             "Peso",
-                            "${_userData!.peso?.toStringAsFixed(1) ?? '-'} kg",
+                            "$peso kg",
                             Icons.monitor_weight_outlined,
                           ),
                     const Divider(indent: 16, endIndent: 16),
@@ -414,12 +505,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : _buildInfoTile(
                             context,
                             "Altura",
-                            "${_userData!.altura?.toStringAsFixed(0) ?? '-'} cm",
+                            "$altura cm",
                             Icons.height,
                           ),
                     const Divider(indent: 16, endIndent: 16),
 
-                    // 🌟 NUEVA FILA: EDAD
+                    // Fila de Edad
                     _isEditing
                         ? _buildEditableTile(
                             context,
@@ -428,25 +519,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             Icons.cake_outlined,
                             "años",
                             TextInputType.number,
-                            [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ], // Solo números enteros
+                            [FilteringTextInputFormatter.digitsOnly],
                           )
                         : _buildInfoTile(
                             context,
                             "Edad",
-                            "${_userData!.edad?.toString() ?? '-'} años",
+                            "$edad años",
                             Icons.cake_outlined,
                           ),
                     const Divider(indent: 16, endIndent: 16),
 
-                    // 🌟 NUEVA FILA: SEXO
+                    // Fila de Sexo
                     _isEditing
                         ? _buildSexoEditableTile(context)
                         : _buildInfoTile(
                             context,
                             "Sexo Biológico",
-                            _userData!.sexo ?? '-',
+                            sexo,
                             Icons.transgender_outlined,
                           ),
                     const Divider(indent: 16, endIndent: 16),
@@ -456,20 +545,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: DropdownButtonFormField<String>(
-                              // ANTES: value: goalAdjustments.keys.contains(_objetivo) ? _objetivo : 'Mantener peso',
-                              // 💡 AHORA: Usamos el nombre completo de la clase
                               value:
                                   NutritionCalculator.goalAdjustments.keys
                                       .contains(_objetivo)
                                   ? _objetivo
-                                  : 'Mantener peso', // Valor por defecto seguro
+                                  : 'Mantener peso',
                               decoration: const InputDecoration(
                                 labelText: "Objetivo",
                                 prefixIcon: Icon(Icons.flag_outlined),
                                 border: OutlineInputBorder(),
                               ),
-                              // ANTES: items: goalAdjustments.keys.map((String goalKey) { ...
-                              // 💡 AHORA: Usamos el nombre completo de la clase
                               items: NutritionCalculator.goalAdjustments.keys
                                   .map((String goalKey) {
                                     return DropdownMenuItem<String>(
@@ -485,7 +570,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : _buildInfoTile(
                             context,
                             "Objetivo",
-                            _userData!.objetivo ?? '-',
+                            objetivo,
                             Icons.flag_outlined,
                           ),
                     const SizedBox(height: 8),
@@ -494,7 +579,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            // ⚙️ OPCIONES ADICIONALES (Cerrar sesión)
+            // ⚙️ OPCIONES ADICIONALES
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: ListTile(
@@ -511,7 +596,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: () async {
                   await FirebaseAuth.instance.signOut();
                   if (mounted) {
-                    // Asegúrate de que tu ruta de login sea correcta
                     Navigator.pushNamedAndRemoveUntil(
                       context,
                       "/login",
@@ -526,7 +610,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
 
-      // 📝 BOTÓN FLOTANTE (EDITAR / GUARDAR)
+      // 📝 BOTÓN FLOTANTE
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           if (_isEditing) {

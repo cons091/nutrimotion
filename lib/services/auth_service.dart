@@ -61,6 +61,19 @@ class AuthService {
     await _auth.signOut();
   }
 
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+    } on FirebaseAuthException catch (e) {
+      // Relanzar la excepción para que la pantalla de Login pueda manejar el error de UI
+      // (ej. "invalid-email" o "user-not-found").
+      rethrow;
+    } catch (e) {
+      print("Error al enviar email de restablecimiento: $e");
+      rethrow;
+    }
+  }
+
   // Stream de sesión activa
   Stream<User?> get userChanges => _auth.authStateChanges();
 }

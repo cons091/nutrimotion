@@ -95,6 +95,110 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // 🔑 NUEVA LÓGICA: Manejar el flujo de restablecimiento de contraseña
+  void _handleForgotPassword() async {
+    final email = _emailController.text
+        .trim(); // Intentar usar el email ya escrito
+
+    // 1. Mostrar diálogo de confirmación/entrada de correo
+    final inputEmail = await showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        // Usaremos un controlador local para el diálogo si el campo principal está vacío
+        final dialogEmailController = TextEditingController(
+          text: email.isNotEmpty && email.contains("@") ? email : "",
+        );
+        final dialogFormKey = GlobalKey<FormState>();
+
+        return AlertDialog(
+          title: const Text("Restablecer Contraseña"),
+          content: Form(
+            key: dialogFormKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Ingresa tu correo para recibir las instrucciones."),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: dialogEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: "Correo",
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null ||
+                        value.isEmpty ||
+                        !value.contains("@")) {
+                      return "Ingresa un correo válido";
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text("Cancelar"),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            ElevatedButton(
+              child: const Text("Enviar"),
+              onPressed: () {
+                if (dialogFormKey.currentState!.validate()) {
+                  Navigator.of(
+                    dialogContext,
+                  ).pop(dialogEmailController.text.trim());
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    // 2. Procesar el resultado del diálogo
+    if (inputEmail != null && inputEmail.isNotEmpty) {
+      setState(() => _isLoading = true);
+      try {
+        await _authService.sendPasswordResetEmail(inputEmail);
+
+        if (mounted) {
+          // Notificar éxito al usuario
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Instrucciones enviadas a $inputEmail. ¡Revisa tu bandeja!",
+              ),
+              backgroundColor: Theme.of(context).colorScheme.tertiary,
+            ),
+          );
+        }
+      } on FirebaseAuthException catch (e) {
+        if (mounted) {
+          String errorMessage;
+          if (e.code == 'user-not-found') {
+            errorMessage = "No se encontró un usuario con ese correo.";
+          } else if (e.code == 'invalid-email') {
+            errorMessage = "El correo ingresado no es válido.";
+          } else {
+            errorMessage =
+                e.message ?? "Error desconocido al intentar restablecer.";
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -242,6 +346,24 @@ class _LoginScreenState extends State<LoginScreen> {
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // 🔑 Enlace a Olvidaste tu Contraseña
+                          const SizedBox(height: 16),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _isLoading
+                                  ? null
+                                  : _handleForgotPassword, // Deshabilitar si está cargando
+                              child: Text(
+                                "¿Olvidaste tu contraseña?",
+                                style: theme.textTheme.bodyMedium!.copyWith(
+                                  color: theme.colorScheme.secondary,
+                                  decoration: TextDecoration.underline,
                                 ),
                               ),
                             ),

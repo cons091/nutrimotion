@@ -1077,8 +1077,11 @@ Niveles de Actividad:
   /// 🍚 Muestra el diálogo para ingresar la cantidad consumida. (AHORA ASÍNCRONO)
   void _showQuantityDialog(FoodItem foodItem, MealType mealType) {
     final formKey = GlobalKey<FormState>();
+
+    // 🔑 CORRECCIÓN: Definimos 'theme' aquí para que sea accesible en este método
     final theme = Theme.of(context);
 
+    // Controlador para el texto (definido fuera del builder para persistencia)
     final quantityController = TextEditingController(
       text: foodItem.servingSize.toStringAsFixed(0),
     );
@@ -1086,23 +1089,23 @@ Niveles de Actividad:
     showDialog(
       context: context,
       builder: (context) {
+        // 🔑 CLAVE: Usamos StatefulBuilder para que el diálogo se redibuje con el cambio de gramos
         return StatefulBuilder(
           builder: (context, setStateInDialog) {
-            // ⭐️ CLAVE 1: Inicializamos currentQuantity con el valor actual del controlador.
+            // Inicializamos con el valor del controlador
             double currentQuantity =
-                double.tryParse(quantityController.text) ?? 0.0;
+                double.tryParse(quantityController.text) ??
+                foodItem.servingSize;
 
             // Función para calcular los macros basados en la cantidad
             void _updateCalculations(String? value) {
               double newQuantity = double.tryParse(value ?? '0') ?? 0.0;
-
-              // ⭐️ CLAVE 2: Actualizar el estado local del diálogo con el nuevo valor
               setStateInDialog(() {
                 currentQuantity = newQuantity;
               });
             }
 
-            // Re-cálculo basado en la cantidad actual (currentQuantity)
+            // Re-cálculo basado en la cantidad actual
             final multiplier = currentQuantity / foodItem.servingSize;
             final dynamicCalories = foodItem.calories * multiplier;
             final dynamicProtein = foodItem.protein * multiplier;
@@ -1121,12 +1124,12 @@ Niveles de Actividad:
                     children: [
                       // Campo de Cantidad (Gramaje)
                       TextFormField(
-                        controller:
-                            quantityController, // ⬅️ Usamos el controlador definido arriba
+                        controller: quantityController,
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
                           labelText: 'Cantidad (${foodItem.unit})',
                           suffixText: foodItem.unit,
+                          border: const OutlineInputBorder(),
                         ),
                         validator: (value) {
                           if (value == null ||
@@ -1136,16 +1139,19 @@ Niveles de Actividad:
                           }
                           return null;
                         },
-                        // 🚀 CLAVE 3: El onChanged ejecuta el recálculo
+                        // 🚀 CLAVE: Llamar a la actualización en cada cambio
                         onChanged: _updateCalculations,
                       ),
                       const SizedBox(height: 16),
-                      // ... (Display de Información Nutricional Dinámica)
+
+                      // 📊 Display de Información Nutricional Dinámica
                       Text(
                         'Información Nutricional (${currentQuantity.toStringAsFixed(0)} ${foodItem.unit}):',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
+
+                      // Ahora 'theme' es accesible aquí
                       _buildDynamicMacroRow(
                         theme,
                         dynamicCalories: dynamicCalories,
@@ -1164,42 +1170,35 @@ Niveles de Actividad:
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    // 🚀 Hacemos el callback ASÍNCRONO
-                    // ⭐️ CLAVE 4: Ejecutar validate (actualiza el estado interno del form)
+                    // Hacer asíncrono para esperar a addEntry
                     if (formKey.currentState!.validate()) {
-                      // ⭐️ CLAVE 5: Capturar el valor FINAL del controlador al guardar
+                      // Usamos la cantidad final del controlador
                       final quantity = double.parse(quantityController.text);
 
-                      // 🛑 CLAVE 6: Añadir el try-catch para manejar el error de Firebase
                       try {
+                        // Añadir al servicio (ahora persistente)
                         await _mealService.addEntry(
                           foodItem: foodItem,
-                          quantity: quantity, // ⬅️ Usa la cantidad capturada
+                          quantity: quantity,
                           mealType: mealType,
                           date: _selectedDate,
                         );
+                        // No necesitamos _loadMealEntries() manual si usamos StreamBuilder
 
-                        // Éxito: Cerrar diálogo y notificar
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Comida añadida exitosamente.'),
-                          ),
-                        );
-                        // El Stream de Firebase actualizará automáticamente la lista.
-                      } catch (e) {
-                        // Fracaso: Notificar y cerrar diálogo si no está cerrado
-                        if (Navigator.of(context).canPop()) {
+                        if (mounted) {
                           Navigator.pop(context);
-                        }
-                        // Usamos e.toString() para asegurar que no se pase un objeto null o complejo.
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Error al añadir comida: ${e.toString()}',
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Alimento añadido correctamente"),
                             ),
-                          ),
-                        );
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("Error al añadir: $e")),
+                          );
+                        }
                       }
                     }
                   },
