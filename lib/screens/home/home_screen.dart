@@ -32,42 +32,32 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      // El cuerpo simplemente muestra la página seleccionada.
       body: _pages[_selectedIndex],
 
-      // 🔑 Reemplazamos BottomNavigationBar por NavigationBar (Material 3)
       bottomNavigationBar: NavigationBar(
-        // Indicador de destino flotante
         indicatorColor: theme.colorScheme.secondaryContainer,
-
-        // El color seleccionado se gestiona por el tema M3
-        // La elevación (sombra) es sutil por defecto en M3
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onItemTapped,
 
         destinations: const [
-          // 🏋️ Entrenamiento
           NavigationDestination(
             icon: Icon(Icons.fitness_center_outlined),
             selectedIcon: Icon(Icons.fitness_center),
             label: "Entrenamiento",
           ),
 
-          // 🍎 Nutrición
           NavigationDestination(
             icon: Icon(Icons.restaurant_menu_outlined),
             selectedIcon: Icon(Icons.restaurant_menu),
             label: "Nutrición",
           ),
 
-          // 📈 Progreso
           NavigationDestination(
             icon: Icon(Icons.show_chart_outlined),
             selectedIcon: Icon(Icons.show_chart),
             label: "Progreso",
           ),
 
-          // 👤 Perfil
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),

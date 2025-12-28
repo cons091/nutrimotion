@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -37,12 +38,11 @@ class AuthService {
       await _db.collection("users").doc(user.uid).set(user.toMap());
       return user;
     } catch (e) {
-      print("Error al registrar usuario: $e");
+      debugPrint('Error al registrar usuario: $e');
       return null;
     }
   }
 
-  // 🔑 Login con email y password
   Future<User?> loginUser(String email, String password) async {
     try {
       UserCredential cred = await _auth.signInWithEmailAndPassword(
@@ -51,12 +51,11 @@ class AuthService {
       );
       return cred.user;
     } catch (e) {
-      print("Error en login: $e");
+      debugPrint("Error en login: $e");
       return null;
     }
   }
 
-  // Cerrar sesión
   Future<void> signOut() async {
     await _auth.signOut();
   }
@@ -64,16 +63,11 @@ class AuthService {
   Future<void> sendPasswordResetEmail(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email.trim());
-    } on FirebaseAuthException catch (e) {
-      // Relanzar la excepción para que la pantalla de Login pueda manejar el error de UI
-      // (ej. "invalid-email" o "user-not-found").
-      rethrow;
     } catch (e) {
-      print("Error al enviar email de restablecimiento: $e");
+      debugPrint("Error al enviar email de restablecimiento: $e");
       rethrow;
     }
   }
 
-  // Stream de sesión activa
   Stream<User?> get userChanges => _auth.authStateChanges();
 }

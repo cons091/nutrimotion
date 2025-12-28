@@ -1,6 +1,5 @@
 import '../models/workout_model.dart';
 
-/// Helper para generar listas de series rápidas
 List<SeriesEntry> generateSeries(int count, int reps) {
   return List.generate(count, (_) => SeriesEntry(reps: reps, weight: null));
 }

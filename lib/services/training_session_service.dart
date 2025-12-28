@@ -5,7 +5,6 @@ import '../models/workout_model.dart';
 class TrainingSessionService {
   final _db = FirebaseFirestore.instance;
 
-  /// Guarda la sesión (construye el modelo internamente)
   Future<void> saveSession({
     required String userId,
     required String title,
@@ -33,7 +32,6 @@ class TrainingSessionService {
         .set(session.toMap());
   }
 
-  /// Alternativa: agregar una sesión ya construida
   Future<void> addSession(TrainingSession session) async {
     await _db
         .collection('users')

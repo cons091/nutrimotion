@@ -1,17 +1,14 @@
-// lib/screens/food/nutrition_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:nutrimotion/screens/food/food_search_screen.dart';
 import 'package:nutrimotion/services/nutrition_calculator.dart';
 import 'package:nutrimotion/services/user_service.dart';
-import 'package:nutrimotion/services/food_service.dart';
 import 'package:nutrimotion/services/meal_service.dart';
 import 'package:nutrimotion/models/meal_entry_model.dart';
 import 'package:nutrimotion/models/food_model.dart';
 import 'package:nutrimotion/models/user_model.dart';
-import 'dart:async'; // Importación necesaria para StreamSubscription
+import 'dart:async';
 
 class NutritionScreen extends StatefulWidget {
   const NutritionScreen({super.key});
@@ -21,67 +18,47 @@ class NutritionScreen extends StatefulWidget {
 }
 
 class _NutritionScreenState extends State<NutritionScreen> {
-  // Inicialización de servicios y auth
   final _userService = UserService();
   final _auth = FirebaseAuth.instance;
   late final NumberFormat numberFormat;
 
-  // Nuevos servicios de Comida
   final MealService _mealService = MealService();
-  final _foodService = FoodService();
 
-  // Variables de Resultado (Inicializadas a 0 y vacío)
   double _tdee = 0.0;
   Map<String, double> _macros = {};
 
-  // Variables de Parámetros Seleccionables por el Usuario (Estado de la UI)
   String _selectedActivityLevel = NutritionCalculator.activityLevels.keys.first;
   String _selectedGoal = NutritionCalculator.goalAdjustments.keys.firstWhere(
-    (k) => k == 'Mantener peso', // Valor inicial seguro
+    (k) => k == 'Mantener peso',
     orElse: () => NutritionCalculator.goalAdjustments.keys.first,
   );
-  String _selectedMacroPlan = NutritionCalculator.macroPlans.keys.first;
+  final _selectedMacroPlan = NutritionCalculator.macroPlans.keys.first;
 
-  // Variable para almacenar los datos del usuario actualizados
-  AppUser? _currentUser;
+  DateTime _selectedDate = DateTime.now();
 
-  // Variables del Diario
-  DateTime _selectedDate =
-      DateTime.now(); // Para el control de la fecha del diario
-
-  // Lista de todas las entradas del día actual y el suscriptor del stream
   List<MealEntry> _allEntriesForDay = [];
   StreamSubscription? _mealSubscription;
 
   @override
   void initState() {
     super.initState();
-    numberFormat = NumberFormat(
-      '#,##0',
-      'es_ES',
-    ); // Formato de miles (ej: 1.650)
-    _listenToMealEntries(); // 🔄 Empezar a escuchar el Stream de Firebase
+    numberFormat = NumberFormat('#,##0', 'es_ES');
+    _listenToMealEntries();
   }
 
   @override
   void dispose() {
-    _mealSubscription
-        ?.cancel(); // 🚫 Cancelar la suscripción al cerrar la pantalla
+    _mealSubscription?.cancel();
     super.dispose();
   }
 
-  // 📅 Método para escuchar el Stream de entradas del día (reemplaza _loadMealEntries)
   void _listenToMealEntries() {
-    // Cancelar la escucha anterior si existe
     _mealSubscription?.cancel();
 
-    // 1. Obtener el Stream de Firebase desde el servicio
     final stream = _mealService.getEntriesForDate(_selectedDate);
 
-    // 2. Suscribirse al Stream
     _mealSubscription = stream.listen(
       (entries) {
-        // 3. Cuando llegan nuevos datos, actualizamos la lista y la UI
         if (mounted) {
           setState(() {
             _allEntriesForDay = entries;
@@ -89,10 +66,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
         }
       },
       onError: (e) {
-        // Manejar errores de Firebase
         if (mounted) {
-          // 🛑 CORRECCIÓN CLAVE: Usamos .toString() y un fallback
-          // para garantizar que la Snackbar reciba un String no nulo.
           final errorMessage =
               e?.toString() ?? 'Error desconocido al cargar el diario.';
           ScaffoldMessenger.of(context).showSnackBar(
@@ -103,7 +77,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
     );
   }
 
-  // 📅 Método para cambiar la fecha
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -115,112 +88,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
       setState(() {
         _selectedDate = picked;
       });
-      _listenToMealEntries(); // 🔄 Reiniciar la escucha para la nueva fecha
-    }
-  }
-
-  // Muestra el diálogo para ingresar la nueva cantidad (No necesita cambios funcionales aquí)
-  Future<void> _openEditDialog(MealEntry entry) async {
-    final TextEditingController quantityController = TextEditingController(
-      // Inicializar con la cantidad actual
-      text: entry.quantity.toStringAsFixed(0),
-    );
-
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        final theme = Theme.of(context);
-
-        return AlertDialog(
-          title: Text('Editar: ${entry.foodItem.name}'),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                // Muestra la unidad actual
-                Text('Unidad: ${entry.foodItem.unit}'),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: quantityController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Nueva Cantidad',
-                    border: const OutlineInputBorder(),
-                    suffixText:
-                        entry.foodItem.unit, // Muestra la unidad en el campo
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancelar'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            FilledButton(
-              child: const Text('Guardar'),
-              onPressed: () {
-                final newQuantity = double.tryParse(quantityController.text);
-                if (newQuantity != null && newQuantity > 0) {
-                  // Llama a la función de actualización y cierra el diálogo
-                  _editEntry(entry, newQuantity);
-                  Navigator.of(context).pop();
-                } else {
-                  // Muestra un error si la entrada no es válida
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Por favor, ingrese una cantidad válida (> 0).',
-                      ),
-                    ),
-                  );
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Llama al servicio para actualizar la entrada en la base de datos (AHORA ASÍNCRONO)
-  Future<void> _editEntry(MealEntry entry, double newQuantity) async {
-    if (newQuantity <= 0) {
-      // Si la cantidad es 0 o menos, eliminar la entrada
-      _removeEntry(entry.id);
-      return;
-    }
-
-    try {
-      // 🚀 Llamada asíncrona al servicio
-      await _mealService.updateMealEntry(entry.id, newQuantity: newQuantity);
-
-      // ❌ Ya NO necesitamos llamar a _loadMealEntries, el Stream se encarga de recargar la UI
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Entrada actualizada correctamente.')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al actualizar la cantidad: $e')),
-      );
-    }
-  }
-
-  // 🗑️ Método para eliminar (AHORA ASÍNCRONO)
-  Future<void> _removeEntry(String entryId) async {
-    try {
-      // 🚀 Llamada asíncrona al servicio
-      await _mealService.removeEntry(entryId);
-      // ❌ Ya NO necesitamos llamar a _loadMealEntries
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Entrada eliminada correctamente.')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al eliminar la entrada: $e')),
-      );
+      _listenToMealEntries();
     }
   }
 
@@ -230,8 +98,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
 
   /// 1. Carga los parámetros del usuario, ejecuta los cálculos y actualiza el estado.
   void _calculateNutrition(AppUser user) {
-    _currentUser = user; // Guardar el usuario actual
-
     // 1.1. Validar que tenemos la data mínima para calcular
     if (user.peso == null ||
         user.altura == null ||
@@ -286,308 +152,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 
   /// -------------------------------------------------------------
-  /// LÓGICA DE PERSISTENCIA
-  /// -------------------------------------------------------------
-
-  /// Guarda las preferencias de Actividad y Objetivo en Firestore.
-  Future<void> _saveUserPreferences({
-    required String activityLevel,
-    required String goal,
-  }) async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
-
-    try {
-      await _userService.updateUserData(userId, {
-        'actividad': activityLevel,
-        'objetivo': goal,
-      });
-      // La UI se actualizará automáticamente a través del StreamBuilder
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar preferencias: $e')),
-        );
-      }
-    }
-  }
-
-  /// -------------------------------------------------------------
-  /// WIDGETS AUXILIARES (Dropdowns y Info)
-  /// -------------------------------------------------------------
-
-  /// Dropdown simple para listas (Objetivo Calórico, Plan Macro)
-  Widget _buildSimpleDropdown({
-    required String label,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return DropdownButtonFormField<String>(
-      value: items.contains(value)
-          ? value
-          : items.first, // Manejo seguro de valor inicial
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.fitness_center),
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 16.0,
-          horizontal: 12.0,
-        ),
-      ),
-      items: items.map((String val) {
-        return DropdownMenuItem<String>(value: val, child: Text(val));
-      }).toList(),
-      onChanged: onChanged,
-    );
-  }
-
-  /// Dropdown para niveles de actividad con descripción (para el Diálogo)
-  Widget _buildDropdownWithInfo({
-    required String label,
-    required String value,
-    required Map<String, Map<String, dynamic>> itemsMap,
-    required String infoTooltip,
-    required ValueChanged<String?> onChanged,
-  }) {
-    // Usamos las claves del mapa para el dropdown
-    final items = itemsMap.keys.toList();
-
-    // Valor por defecto seguro
-    final safeValue = items.contains(value) ? value : items.first;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(label, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: infoTooltip,
-              child: Icon(
-                Icons.info_outline,
-                size: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: safeValue,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(
-              vertical: 16.0,
-              horizontal: 12.0,
-            ),
-          ),
-          items: items.map((String key) {
-            return DropdownMenuItem<String>(value: key, child: Text(key));
-          }).toList(),
-          onChanged: onChanged,
-        ),
-        // Descripción actual del nivel de actividad
-        Padding(
-          padding: const EdgeInsets.only(top: 8.0, left: 4.0),
-          child: Text(
-            itemsMap[safeValue]?['description'] ?? '',
-            style: Theme.of(context).textTheme.bodySmall!.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Columna para mostrar gramos y porcentaje de un macronutriente
-  Widget _buildMacroColumn(
-    ThemeData theme,
-    String title,
-    double grams,
-    double percent,
-  ) {
-    Color color;
-    switch (title) {
-      case 'Proteínas':
-        color = Colors.blue.shade700;
-        break;
-      case 'Carbohidratos':
-        color = Colors.green.shade700;
-        break;
-      case 'Grasas':
-        color = Colors.red.shade700;
-        break;
-      default:
-        color = theme.colorScheme.onSurface;
-    }
-
-    return Column(
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.bodyLarge!.copyWith(
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${numberFormat.format(grams.round())} g',
-          style: theme.textTheme.titleMedium,
-        ),
-        Text(
-          '(${numberFormat.format(percent.round())}%)',
-          style: theme.textTheme.bodyMedium!.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Tile para mostrar un parámetro actual (Actividad, Objetivo, Plan)
-  Widget _buildInfoTile(
-    ThemeData theme,
-    String title,
-    String value,
-    IconData icon,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: theme.colorScheme.primary),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: theme.textTheme.bodyLarge!.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const Spacer(),
-          Text(value, style: theme.textTheme.bodyLarge),
-        ],
-      ),
-    );
-  }
-
-  /// -------------------------------------------------------------
-  /// DIÁLOGO DE EDICIÓN DE PARÁMETROS
-  /// -------------------------------------------------------------
-
-  /// Muestra un diálogo modal para editar los parámetros de cálculo.
-  Future<void> _showEditDialog() async {
-    // Usamos variables locales para mantener el estado del diálogo
-    String tempActivityLevel = _selectedActivityLevel;
-    String tempGoal = _selectedGoal;
-    String tempMacroPlan = _selectedMacroPlan;
-
-    // Tooltip para describir los niveles de actividad
-    const activityTooltip = '''
-Niveles de Actividad:
-- Sedentario: Poco o ningún ejercicio.
-- Ligera: Ejercicio 1-3 veces por semana.
-- Moderada: Ejercicio 4-5 veces por semana.
-- Alta: Ejercicio diario o intenso 3-4 veces por semana.
-- Muy Activo: Ejercicio intenso 6-7 veces por semana.
-- Extra Activo: Ejercicio muy intenso a diario, o trabajo físico.
-''';
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateInDialog) {
-            return AlertDialog(
-              title: const Text('Editar Parámetros de Cálculo'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Dropdown: Nivel de Actividad
-                    _buildDropdownWithInfo(
-                      label: 'Nivel de Actividad',
-                      value: tempActivityLevel,
-                      itemsMap: NutritionCalculator.activityLevels,
-                      infoTooltip: activityTooltip,
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setStateInDialog(() => tempActivityLevel = newValue);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Dropdown: Objetivo Calórico
-                    _buildSimpleDropdown(
-                      label: 'Objetivo Calórico',
-                      value: tempGoal,
-                      items: NutritionCalculator.goalAdjustments.keys.toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setStateInDialog(() => tempGoal = newValue);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Dropdown: Plan de Macronutrientes
-                    _buildSimpleDropdown(
-                      label: 'Plan de Macronutrientes',
-                      value: tempMacroPlan,
-                      items: NutritionCalculator.macroPlans.keys.toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setStateInDialog(() => tempMacroPlan = newValue);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    // 1. Guardar preferencias en Firebase (Actividad y Objetivo)
-                    _saveUserPreferences(
-                      activityLevel: tempActivityLevel,
-                      goal: tempGoal,
-                    );
-
-                    // 2. Actualizar el estado de la pantalla principal
-                    setState(() {
-                      // Estos 3 estados se actualizan aquí
-                      _selectedActivityLevel = tempActivityLevel;
-                      _selectedGoal = tempGoal;
-                      _selectedMacroPlan = tempMacroPlan;
-
-                      // Forzar el recálculo (necesario solo para el plan macro, TDEE se actualiza por stream)
-                      if (_currentUser != null) {
-                        _calculateNutrition(_currentUser!);
-                      }
-                    });
-
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Guardar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  /// -------------------------------------------------------------
   /// VISTA PRINCIPAL
   /// -------------------------------------------------------------
 
@@ -624,12 +188,12 @@ Niveles de Actividad:
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 📅 Control de Fecha
+          // Control de Fecha
           _buildDateSelector(theme),
           const Divider(height: 1, indent: 16, endIndent: 16),
           const SizedBox(height: 16),
 
-          // 🎯 Metas y Progreso (Barra)
+          // Metas y Progreso (Barra)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: _buildProgressCard(
@@ -647,17 +211,15 @@ Niveles de Actividad:
 
           const SizedBox(height: 24),
 
-          // 📝 Diario de Comidas
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text('Diario de Comidas', style: theme.textTheme.titleLarge),
           ),
           const Divider(indent: 16, endIndent: 16),
 
-          // Listado de Secciones de Comida
           ...MealType.values.map((type) {
             return _buildMealSection(theme, type);
-          }).toList(),
+          }),
 
           const SizedBox(height: 40),
         ],
@@ -669,14 +231,10 @@ Niveles de Actividad:
     final dateFormat = DateFormat('EEEE, d MMMM', 'es_ES');
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8.0,
-        vertical: 8.0,
-      ), // Ajustamos padding
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Botón Anterior
           IconButton(
             icon: const Icon(Icons.arrow_back_ios, size: 20),
             onPressed: () {
@@ -685,23 +243,20 @@ Niveles de Actividad:
                   const Duration(days: 1),
                 ),
               );
-              _listenToMealEntries(); // 🔄 Usar el nuevo método de escucha
+              _listenToMealEntries();
             },
           ),
 
-          // 📅 Indicador de Fecha (más prominente y clickeable)
           GestureDetector(
             onTap: () => _selectDate(context),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: theme
-                    .colorScheme
-                    .primaryContainer, // Un fondo sutil del color primario
+                color: theme.colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: theme.colorScheme.shadow.withOpacity(0.1),
+                    color: theme.colorScheme.shadow.withValues(alpha: 0.1),
                     blurRadius: 3,
                     offset: const Offset(0, 1),
                   ),
@@ -717,22 +272,20 @@ Niveles de Actividad:
             ),
           ),
 
-          // Botón Siguiente
           IconButton(
             icon: const Icon(Icons.arrow_forward_ios, size: 20),
-            // Desactivar si la fecha es hoy o futura (opcional, pero útil)
             onPressed:
                 _selectedDate.day == DateTime.now().day &&
                     _selectedDate.month == DateTime.now().month &&
                     _selectedDate.year == DateTime.now().year
-                ? null // Desactivar si es hoy
+                ? null
                 : () {
                     setState(
                       () => _selectedDate = _selectedDate.add(
                         const Duration(days: 1),
                       ),
                     );
-                    _listenToMealEntries(); // 🔄 Usar el nuevo método de escucha
+                    _listenToMealEntries();
                   },
           ),
         ],
@@ -751,7 +304,6 @@ Niveles de Actividad:
     required double goalFat,
     required double consumedFat,
   }) {
-    // Las variables restantes todavía se necesitan para el progreso de los macros.
     final remainingProtein = (goalProtein - consumedProtein).round().clamp(
       0,
       goalProtein.round(),
@@ -765,11 +317,9 @@ Niveles de Actividad:
       goalFat.round(),
     );
 
-    // Fila para mostrar Macros (Restante vs Consumido)
     final macroRow = Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        // Proteínas
         _buildMacroProgress(
           theme,
           'Proteínas',
@@ -778,7 +328,6 @@ Niveles de Actividad:
           consumedProtein.round(),
           Colors.blue,
         ),
-        // Carbohidratos
         _buildMacroProgress(
           theme,
           'Carbohidratos',
@@ -787,7 +336,6 @@ Niveles de Actividad:
           consumedCarbs.round(),
           Colors.green,
         ),
-        // Grasas
         _buildMacroProgress(
           theme,
           'Grasas',
@@ -806,13 +354,9 @@ Niveles de Actividad:
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // 🚀 NUEVA MÉTRICA PRINCIPAL (Minimalista)
             Text(
-              // 1. Formato: 0/2.125 calorias
-              // 2. Unidad: 'calorias'
               '${numberFormat.format(consumedCalories.round())} / ${numberFormat.format(goalCalories.round())} calorias',
               style: theme.textTheme.headlineMedium!.copyWith(
-                // Usamos el color para indicar si la meta fue superada o no
                 color: consumedCalories <= goalCalories
                     ? theme.colorScheme.primary
                     : Colors.red.shade700,
@@ -828,7 +372,6 @@ Niveles de Actividad:
     );
   }
 
-  // Widget auxiliar para cada Macro
   Widget _buildMacroProgress(
     ThemeData theme,
     String title,
@@ -847,14 +390,12 @@ Niveles de Actividad:
           ),
         ),
         const SizedBox(height: 4),
-        // Formato Consumido / Meta
         Text(
           '${numberFormat.format(consumed)} g / ${numberFormat.format(goal)} g',
           style: theme.textTheme.bodyMedium,
         ),
-        // Muestra lo restante
         Text(
-          remaining > 0 ? '${remaining} g restantes' : '¡Meta Cumplida!',
+          remaining > 0 ? '$remaining g restantes' : '¡Meta Cumplida!',
           style: theme.textTheme.bodySmall!.copyWith(
             color: remaining == 0
                 ? Colors.green
@@ -867,41 +408,29 @@ Niveles de Actividad:
 
   Widget _buildMealSection(ThemeData theme, MealType type) {
     final title = type.toString().split('.').last.toUpperCase();
-
-    // 🚀 Filtramos las entradas para este tipo de comida de la lista general
     final entries = _allEntriesForDay
         .where((entry) => entry.mealType == type)
         .toList();
-
-    // final entries = _currentDayEntries[type] ?? []; // ❌ Eliminamos
     final totalSectionCalories = entries.fold(
       0.0,
       (sum, entry) => sum + entry.totalCalories,
     );
 
     return Card(
-      // Estructura de Tarjeta: Elegante separación visual
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      elevation:
-          1, // ⬅️ Reducimos la elevación para un look más plano/minimalista
-      color: theme
-          .colorScheme
-          .surfaceContainer, // Fondo sutilmente diferente al Scaffold
+      elevation: 1,
+      color: theme.colorScheme.surfaceContainer,
       child: Padding(
         padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Título de la Sección y Resumen de Calorías
             ListTile(
               title: Text(
                 title,
-                // Estilo minimalista: Fuerte pero integrado
                 style: theme.textTheme.titleLarge!.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: theme
-                      .colorScheme
-                      .onSurface, // Color de texto normal, no primario
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
               trailing: Text(
@@ -933,11 +462,7 @@ Niveles de Actividad:
                 ),
               ),
 
-            ...entries
-                .map((entry) => _buildMealEntryTile(theme, entry))
-                .toList(),
-
-            // ➕ Botón para Añadir Comida
+            ...entries.map((entry) => _buildMealEntryTile(theme, entry)),
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16.0,
@@ -949,12 +474,10 @@ Niveles de Actividad:
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(40),
                   side: BorderSide(
-                    color: theme.colorScheme.primary.withOpacity(0.5),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      8,
-                    ), // Bordes menos redondos para elegancia
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 onPressed: () => _openFoodSearch(type),
@@ -967,34 +490,10 @@ Niveles de Actividad:
   }
 
   Widget _buildMealEntryTile(ThemeData theme, MealEntry entry) {
-    Widget _buildActionButtons() {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ✏️ Botón de Editar Cantidad (Abre el diálogo)
-          IconButton(
-            icon: Icon(
-              Icons.edit_outlined,
-              size: 22,
-              color: theme.colorScheme.primary,
-            ),
-            onPressed: () => _openEditDialog(entry),
-          ),
-          // 🗑️ Botón de Eliminar
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 22, color: Colors.red),
-            onPressed: () => _removeEntry(entry.id),
-          ),
-        ],
-      );
-    }
-
     return Padding(
       padding: const EdgeInsets.only(left: 16, right: 8, bottom: 4, top: 4),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8.0),
-
-        // ❌ QUITAMOS onTap: Ya no se edita tocando toda la sección
         onTap: null,
 
         title: Text(
@@ -1007,7 +506,6 @@ Niveles de Actividad:
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            // 1. Cantidad y Calorías
             Row(
               children: [
                 Text(
@@ -1028,7 +526,6 @@ Niveles de Actividad:
               ],
             ),
             const SizedBox(height: 4),
-            // 2. Macros (P/C/G)
             Row(
               children: [
                 Text(
@@ -1049,39 +546,28 @@ Niveles de Actividad:
             ),
           ],
         ),
-
-        // 🚀 CAMBIO CLAVE: Reemplazamos el trailing con la fila de botones
-        trailing: _buildActionButtons(),
-
         dense: true,
       ),
     );
   }
 
-  /// 🍽️ Abre la pantalla de búsqueda de alimentos y espera el resultado.
   void _openFoodSearch(MealType mealType) async {
-    // 💡 NOTA: Asume que tienes definida la clase FoodSearchScreen
     final selectedFood = await Navigator.of(context).push(
       MaterialPageRoute<FoodItem>(
         builder: (context) => const FoodSearchScreen(),
       ),
     );
 
-    // Si el usuario seleccionó un alimento (futuro)
     if (selectedFood != null) {
-      // ⭐️ Muestra el diálogo para ingresar la cantidad
       _showQuantityDialog(selectedFood, mealType);
     }
   }
 
-  /// 🍚 Muestra el diálogo para ingresar la cantidad consumida. (AHORA ASÍNCRONO)
   void _showQuantityDialog(FoodItem foodItem, MealType mealType) {
     final formKey = GlobalKey<FormState>();
 
-    // 🔑 CORRECCIÓN: Definimos 'theme' aquí para que sea accesible en este método
     final theme = Theme.of(context);
 
-    // Controlador para el texto (definido fuera del builder para persistencia)
     final quantityController = TextEditingController(
       text: foodItem.servingSize.toStringAsFixed(0),
     );
@@ -1089,23 +575,12 @@ Niveles de Actividad:
     showDialog(
       context: context,
       builder: (context) {
-        // 🔑 CLAVE: Usamos StatefulBuilder para que el diálogo se redibuje con el cambio de gramos
         return StatefulBuilder(
           builder: (context, setStateInDialog) {
-            // Inicializamos con el valor del controlador
             double currentQuantity =
                 double.tryParse(quantityController.text) ??
                 foodItem.servingSize;
 
-            // Función para calcular los macros basados en la cantidad
-            void _updateCalculations(String? value) {
-              double newQuantity = double.tryParse(value ?? '0') ?? 0.0;
-              setStateInDialog(() {
-                currentQuantity = newQuantity;
-              });
-            }
-
-            // Re-cálculo basado en la cantidad actual
             final multiplier = currentQuantity / foodItem.servingSize;
             final dynamicCalories = foodItem.calories * multiplier;
             final dynamicProtein = foodItem.protein * multiplier;
@@ -1122,7 +597,6 @@ Niveles de Actividad:
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Campo de Cantidad (Gramaje)
                       TextFormField(
                         controller: quantityController,
                         keyboardType: TextInputType.number,
@@ -1139,19 +613,13 @@ Niveles de Actividad:
                           }
                           return null;
                         },
-                        // 🚀 CLAVE: Llamar a la actualización en cada cambio
-                        onChanged: _updateCalculations,
                       ),
                       const SizedBox(height: 16),
-
-                      // 📊 Display de Información Nutricional Dinámica
                       Text(
                         'Información Nutricional (${currentQuantity.toStringAsFixed(0)} ${foodItem.unit}):',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-
-                      // Ahora 'theme' es accesible aquí
                       _buildDynamicMacroRow(
                         theme,
                         dynamicCalories: dynamicCalories,
@@ -1170,29 +638,25 @@ Niveles de Actividad:
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    // Hacer asíncrono para esperar a addEntry
                     if (formKey.currentState!.validate()) {
-                      // Usamos la cantidad final del controlador
                       final quantity = double.parse(quantityController.text);
 
                       try {
-                        // Añadir al servicio (ahora persistente)
                         await _mealService.addEntry(
                           foodItem: foodItem,
                           quantity: quantity,
                           mealType: mealType,
                           date: _selectedDate,
                         );
-                        // No necesitamos _loadMealEntries() manual si usamos StreamBuilder
 
-                        if (mounted) {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Alimento añadido correctamente"),
-                            ),
-                          );
-                        }
+                        if (!context.mounted) return;
+
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Alimento añadido correctamente"),
+                          ),
+                        );
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -1212,7 +676,6 @@ Niveles de Actividad:
     );
   }
 
-  // 📦 Nuevo Widget Auxiliar para mostrar la Fila de Macros Dinámicos
   Widget _buildDynamicMacroRow(
     ThemeData theme, {
     required double dynamicCalories,
@@ -1255,7 +718,6 @@ Niveles de Actividad:
     );
   }
 
-  // Widget auxiliar para cada ítem de macro
   Widget _buildMacroItem(
     ThemeData theme,
     String label,
@@ -1266,7 +728,6 @@ Niveles de Actividad:
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ✅ Aquí la variable theme ya está definida
         Text(
           '$label: ',
           style: theme.textTheme.bodyMedium!.copyWith(
@@ -1281,10 +742,6 @@ Niveles de Actividad:
     );
   }
 
-  /// -------------------------------------------------------------
-  /// WIDGET PRINCIPAL (StreamBuilder)
-  /// -------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
     final userId = _auth.currentUser?.uid;
@@ -1295,9 +752,7 @@ Niveles de Actividad:
     }
 
     return Scaffold(
-      // 🚀 CAMBIO CLAVE: AppBar simple, plana y con título limpio
       appBar: AppBar(
-        // Título: "Nutrición"
         title: Text(
           'Nutrición',
           style: theme.textTheme.headlineLarge!.copyWith(
@@ -1307,11 +762,9 @@ Niveles de Actividad:
         ),
         centerTitle: false,
         backgroundColor: theme.scaffoldBackgroundColor,
-        elevation:
-            0, // ⬅️ Asegura que no hay sombra ni "sobreposición" al hacer scroll
+        elevation: 0,
       ),
 
-      // 📝 StreamBuilder escucha los cambios en los datos del usuario en tiempo real
       body: StreamBuilder<AppUser>(
         stream: _userService.getUserData(userId),
         builder: (context, snapshot) {
@@ -1320,7 +773,6 @@ Niveles de Actividad:
           }
 
           if (snapshot.hasError) {
-            // 🛑 CORRECCIÓN DE SEGURIDAD (Si el error viene del stream de usuario)
             final errorMessage =
                 snapshot.error?.toString() ?? 'Error desconocido del usuario.';
             return Center(child: Text('Error al cargar datos: $errorMessage'));

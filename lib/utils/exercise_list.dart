@@ -1,5 +1,3 @@
-// lib/utils/exercise_list.dart
-
 class ExerciseList {
   static final Map<String, List<String>> exercisesByGroup = {
     "Pecho": [
@@ -75,22 +73,20 @@ class ExerciseList {
       "Skull crushers con barra",
     ],
 
-    // 🚀 AÑADIDO: Brazos (Combina Bíceps y Tríceps)
     "Brazos": [
       "Curl con barra recta",
       "Curl con barra Z",
       "Curl con mancuernas alterno",
       "Curl martillo",
       "Curl concentrado",
-      "Fondos en paralelas", // Tríceps
-      "Press cerrado con barra", // Tríceps
-      "Extensión con mancuerna tras nuca", // Tríceps
-      "Extensión en polea con barra recta", // Tríceps
-      "Extensión en polea con cuerda", // Tríceps
-      "Press francés con barra Z", // Tríceps
+      "Fondos en paralelas",
+      "Press cerrado con barra",
+      "Extensión con mancuerna tras nuca",
+      "Extensión en polea con barra recta",
+      "Extensión en polea con cuerda",
+      "Press francés con barra Z",
     ],
 
-    // 🚀 AÑADIDO: Full Body (Ejercicios Compuestos Clave)
     "FullBody": [
       "Sentadilla con barra (back squat)",
       "Prensa inclinada",

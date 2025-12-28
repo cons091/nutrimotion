@@ -17,7 +17,6 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
   final workoutService = WorkoutService();
   List<Workout> _workouts = [];
 
-  // Función para confirmar y eliminar con un diálogo (mejor UX)
   Future<void> _confirmAndDelete(String userId, Workout workout) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -72,7 +71,6 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
 
           final workoutsFromStream = snapshot.data ?? [];
 
-          // Actualización de la lista local
           if (_workouts.isEmpty ||
               _workouts.length != workoutsFromStream.length) {
             _workouts = workoutsFromStream;
@@ -88,7 +86,7 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
                     Icon(
                       Icons.list_alt,
                       size: 80,
-                      color: theme.colorScheme.outline.withOpacity(0.5),
+                      color: theme.colorScheme.outline.withValues(alpha: 0.5),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -121,7 +119,7 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
                 child: Card(
-                  elevation: 4, // Sombra más prominente para destacar
+                  elevation: 4,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -145,7 +143,6 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
                           "${workout.exercises.length} ${workout.exercises.length == 1 ? 'ejercicio' : 'ejercicios'}",
                           style: theme.textTheme.bodyMedium,
                         ),
-                        // Acción principal (al tocar la tarjeta) es ir al detalle
                         onTap: () async {
                           final updatedWorkout = await Navigator.push<Workout>(
                             context,
@@ -161,7 +158,6 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
                             });
                           }
                         },
-                        // Acciones secundarias: Eliminar
                         trailing: IconButton(
                           icon: Icon(
                             Icons.delete_outline,
@@ -170,8 +166,6 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
                           onPressed: () => _confirmAndDelete(userId, workout),
                         ),
                       ),
-
-                      // 🚀 Botón de acción principal: Empezar Entrenamiento
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
                         child: SizedBox(
@@ -209,13 +203,10 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
           );
         },
       ),
-
-      // ➕ Botones Flotantes Agrupados (Mejor Estética)
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // 🟢 Entrenamiento vacío (Small FAB)
           FloatingActionButton.small(
             heroTag: "fab1",
             onPressed: () {
@@ -231,8 +222,6 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
             child: const Icon(Icons.timer_outlined),
           ),
           const SizedBox(height: 10),
-
-          // ➕ Crear rutina (Extended FAB principal)
           FloatingActionButton.extended(
             heroTag: "fab2",
             onPressed: () async {
@@ -240,8 +229,6 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
                 context,
                 MaterialPageRoute(builder: (_) => const WorkoutFormScreen()),
               );
-              // La lista se actualizará automáticamente con el StreamBuilder,
-              // pero mantenemos la lógica por si el formulario no actualiza Firestore inmediatamente.
               if (newWorkout != null &&
                   !_workouts.any((w) => w.id == newWorkout.id)) {
                 setState(() {
@@ -251,9 +238,7 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
             },
             icon: const Icon(Icons.add_box_rounded),
             label: const Text("Nueva Rutina"),
-            backgroundColor: theme
-                .colorScheme
-                .primary, // Usamos el color principal para destacar
+            backgroundColor: theme.colorScheme.primary,
             foregroundColor: theme.colorScheme.onPrimary,
           ),
         ],

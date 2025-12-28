@@ -3,13 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:nutrimotion/models/workout_model.dart';
 import 'package:nutrimotion/services/training_session_service.dart';
-import 'package:flutter/foundation.dart' show kDebugMode; // Para debugPrint
-import 'package:intl/intl.dart'; // Necesario para formatear el número de peso
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:intl/intl.dart';
 import 'package:nutrimotion/screens/training/group_selection_screen.dart';
-
-// ======================================================================
-// WIDGET PRINCIPAL
-// ======================================================================
 
 class WorkoutSessionScreen extends StatefulWidget {
   final Workout? initialWorkout;
@@ -24,10 +20,6 @@ class WorkoutSessionScreen extends StatefulWidget {
   @override
   State<WorkoutSessionScreen> createState() => _WorkoutSessionScreenState();
 }
-
-// ======================================================================
-// WIDGET SECUNDARIO: SeriesEntryRow
-// ======================================================================
 
 class SeriesEntryRow extends StatefulWidget {
   final SeriesEntry series;
@@ -57,7 +49,6 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
     _repsController = TextEditingController(
       text: widget.series.reps.toString(),
     );
-    // Aseguramos que el peso se muestre con una precisión legible
     final formattedWeight = widget.series.weight != null
         ? NumberFormat('0.##').format(widget.series.weight)
         : "";
@@ -73,7 +64,6 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
 
     final parsed = int.tryParse(text);
     if (parsed != null && parsed >= 0) {
-      // Permitir reps 0 temporalmente
       widget.series.reps = parsed;
       widget.onUpdate?.call(parsed, widget.series.weight);
     }
@@ -82,7 +72,7 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
   void _updateWeight() {
     final text = _weightController.text;
     if (text.isEmpty) {
-      widget.series.weight = 0; // Usar 0 en lugar de null para consistencia
+      widget.series.weight = 0;
       widget.onUpdate?.call(widget.series.reps, 0);
       return;
     }
@@ -115,14 +105,13 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
       decoration: BoxDecoration(
         color: isCompleted
-            ? theme.colorScheme.primaryContainer.withOpacity(0.2)
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.2)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Número de Serie
           SizedBox(
             width: 40,
             child: Text(
@@ -135,8 +124,6 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
               ),
             ),
           ),
-
-          // Campo de Repeticiones
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -159,8 +146,6 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
               ),
             ),
           ),
-
-          // Campo de Peso
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -184,7 +169,6 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
             ),
           ),
 
-          // Botón de Check/Completado
           IconButton(
             icon: Icon(
               isCompleted
@@ -203,19 +187,13 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
   }
 }
 
-// ======================================================================
-// ESTADO PRINCIPAL: _WorkoutSessionScreenState
-// ======================================================================
-
 class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
   late Workout workout;
 
-  // Cronómetro principal
   bool isRunning = false;
   Duration elapsed = Duration.zero;
   Timer? timer;
 
-  // Temporizador de descanso
   Timer? restTimer;
   Duration restTime = Duration.zero;
   bool isResting = false;
@@ -227,23 +205,18 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
   @override
   void initState() {
     super.initState();
-    // Inicialización del workout
     workout =
         widget.initialWorkout ??
         Workout(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           title: "Entrenamiento rápido",
-          day: DateFormat(
-            'EEEE',
-          ).format(DateTime.now()), // Día de la semana actual
+          day: DateFormat('EEEE').format(DateTime.now()),
           exercises: [],
         );
 
-    // Si es una plantilla, aseguramos que todas las series tengan isCompleted = false
     for (var ex in workout.exercises) {
       for (var series in ex.series) {
         series.isCompleted = false;
-        // Si el peso es nulo, lo establecemos a 0 para mejor manejo en sesión
         series.weight ??= 0;
       }
     }
@@ -254,15 +227,11 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
   }
 
   void _editWorkoutDetails() {
-    // Para editar el título
     TextEditingController titleCtrl = TextEditingController(
       text: workout.title,
     );
 
-    // Opciones de descanso comunes (en segundos)
     final List<int> restOptionsSeconds = [30, 45, 60, 90, 120, 150, 180, 240];
-
-    // Usamos un valor temporal inicializado con la duración actual
     int tempSelectedRestSeconds = currentRestDuration.inSeconds;
 
     showDialog(
@@ -277,7 +246,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. Edición del Título
                     TextField(
                       controller: titleCtrl,
                       decoration: const InputDecoration(
@@ -291,8 +259,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 10),
-
-                    // 2. Edición del Tiempo de Descanso (Dropdown)
                     DropdownButton<int>(
                       isExpanded: true,
                       value: tempSelectedRestSeconds,
@@ -330,27 +296,20 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
             FilledButton(
               child: const Text('GUARDAR'),
               onPressed: () {
-                // 🚀 APLICAR CAMBIOS
                 setState(() {
-                  // 1. Actualizar título de la rutina
                   workout = Workout(
                     id: workout.id,
                     title: titleCtrl.text.trim(),
                     day: workout.day,
                     exercises: workout.exercises,
-                    restTimeSeconds:
-                        tempSelectedRestSeconds, // El modelo está actualizado
+                    restTimeSeconds: tempSelectedRestSeconds,
                   );
-
-                  // 2. Actualizar el tiempo de descanso en la sesión
                   currentRestDuration = Duration(
                     seconds: tempSelectedRestSeconds,
                   );
-
-                  // Si el descanso estaba activo, lo reiniciamos con la nueva duración
                   if (isResting) {
-                    _stopRestTimer(); // Cancela el viejo timer
-                    _startRestTimer(); // Inicia uno nuevo con la nueva duración
+                    _stopRestTimer();
+                    _startRestTimer();
                   }
                 });
                 Navigator.of(dialogContext).pop();
@@ -377,11 +336,10 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
   }
 
   void _startRestTimer() {
-    _stopTimer(); // Pausar el cronómetro principal
+    _stopTimer();
 
     setState(() {
       isResting = true;
-      // 🚀 CAMBIO 3: Usamos la variable de estado configurable
       restTime = currentRestDuration;
     });
 
@@ -390,15 +348,13 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
         setState(() => restTime -= const Duration(seconds: 1));
       } else {
         _stopRestTimer();
-        _startTimer(); // Reanudar el entrenamiento
-        // Opcional: Notificación/Vibración
+        _startTimer();
       }
     });
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          // 🚀 CAMBIO 4: Mostrar el tiempo configurable
           content: Text(
             "Descanso iniciado: ${_formatRestTime(currentRestDuration)} 🧘",
           ),
@@ -421,30 +377,18 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
       final series = exercise.series[seriesIndex];
       series.isCompleted = !(series.isCompleted ?? false);
     });
-
-    // Si la serie se marca como completada, sugerir iniciar el descanso
     if (exercise.series[seriesIndex].isCompleted == true) {
       _startRestTimer();
     }
   }
 
-  // Método para agregar ejercicio (mejorado con validación y Material 3)
-  // En _WorkoutSessionScreenState
-
   void _addExercise() async {
-    // 1. **Paso de Selección:** Usamos GroupSelectionScreen como punto de partida
     final exerciseName = await Navigator.push(
       context,
-      MaterialPageRoute(
-        // 🚀 PRIMERO VAMOS A SELECCIONAR EL GRUPO, LUEGO EL EJERCICIO
-        builder: (_) => const GroupSelectionScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const GroupSelectionScreen()),
     );
 
-    if (exerciseName == null) return; // Si no seleccionó nada, salimos
-
-    // La lógica del formulario que pasaste se lanza ahora:
-    // Controladores temporales para el diálogo de configuración
+    if (exerciseName == null) return;
     List<TextEditingController> repsControllers = [
       TextEditingController(text: '8'),
     ];
@@ -461,9 +405,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              title: Text(
-                "Configurar ${exerciseName as String}",
-              ), // Aseguramos que es String
+              title: Text("Configurar ${exerciseName as String}"),
               contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
               content: SingleChildScrollView(
                 child: Column(
@@ -474,7 +416,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 16),
-                    // Lista de series
                     Column(
                       children: List.generate(tempSeries.length, (i) {
                         return Padding(
@@ -517,7 +458,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                                   textAlign: TextAlign.center,
                                 ),
                               ),
-                              // Botón de eliminar serie
                               IconButton(
                                 icon: const Icon(
                                   Icons.remove_circle_outline,
@@ -546,7 +486,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                         );
                       }),
                     ),
-                    // Botón para añadir serie
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton.icon(
@@ -571,9 +510,12 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    // Limpiar controladores al cancelar
-                    for (var c in repsControllers) c.dispose();
-                    for (var c in weightControllers) c.dispose();
+                    for (var c in repsControllers) {
+                      c.dispose();
+                    }
+                    for (var c in weightControllers) {
+                      c.dispose();
+                    }
                     Navigator.pop(context);
                   },
                   child: const Text("Cancelar"),
@@ -582,22 +524,16 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                   onPressed: () {
                     final newSeries = <SeriesEntry>[];
                     bool hasInvalidValue = false;
-
-                    // 🚀 VALIDACIÓN DE CERO: REUTILIZADA DEL FORMULARIO
                     for (var i = 0; i < repsControllers.length; i++) {
                       final reps = int.tryParse(repsControllers[i].text) ?? 0;
                       final weight =
                           double.tryParse(weightControllers[i].text) ?? 0;
-
-                      // Si quieres que el peso pueda ser 0 (peso corporal), cambia `weight <= 0`
-                      // a solo verificar que las reps sean > 0.
                       if (reps <= 0 || weight <= 0) {
                         hasInvalidValue = true;
                         break;
                       }
                       newSeries.add(SeriesEntry(reps: reps, weight: weight));
                     }
-                    // 🎯 FIN DE VALIDACIÓN
 
                     if (hasInvalidValue) {
                       if (mounted) {
@@ -612,17 +548,17 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                       }
                       return;
                     }
-
-                    // 🚀 AÑADIR A LA SESIÓN (Usamos setState de la clase principal)
                     setState(() {
                       workout.exercises.add(
                         Exercise(name: exerciseName, series: newSeries),
                       );
                     });
-
-                    // Limpiar controladores y cerrar diálogo
-                    for (var c in repsControllers) c.dispose();
-                    for (var c in weightControllers) c.dispose();
+                    for (var c in repsControllers) {
+                      c.dispose();
+                    }
+                    for (var c in weightControllers) {
+                      c.dispose();
+                    }
 
                     if (mounted) Navigator.pop(context);
                   },
@@ -642,8 +578,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
       if (userId == null) {
         throw Exception("Usuario no autenticado");
       }
-
-      // Filtramos las series que se completaron y tienen valores válidos (Reps > 0)
       final completedExercises = workout.exercises
           .map((ex) {
             final completedSeries = ex.series
@@ -709,10 +643,8 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
     final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
 
     if (showSecondsOnly) {
-      // Para el botón de Descanso: "1:30"
       return '$minutes:$seconds';
     }
-    // Para diálogos: "1 min 30 seg"
     return '$minutes min $seconds seg';
   }
 
@@ -733,7 +665,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
         title: Text(workout.title),
         backgroundColor: theme.colorScheme.surfaceContainerHigh,
         actions: [
-          // 🚀 AÑADIR BOTÓN DE EDICIÓN AQUÍ
           IconButton(
             icon: const Icon(Icons.edit_note_rounded),
             onPressed: _editWorkoutDetails,
@@ -743,7 +674,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
       ),
       body: Column(
         children: [
-          // ⏱️ Sección del Cronómetro (Estilo Moderno)
           Padding(
             padding: const EdgeInsets.only(top: 20.0, bottom: 16.0),
             child: Column(
@@ -779,7 +709,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                // Botones de control del cronómetro y descanso
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -806,7 +735,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                         isResting ? Icons.stop_rounded : Icons.timer_rounded,
                       ),
                       label: Text(
-                        // 🚀 USO DEL HELPER FORMATO COMPACTO
                         isResting
                             ? "CANCELAR DESCANSO"
                             : "DESCANSO (${_formatRestTime(currentRestDuration, showSecondsOnly: true)})",
@@ -814,7 +742,9 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isResting
                             ? theme.colorScheme.tertiaryContainer
-                            : theme.colorScheme.errorContainer.withOpacity(0.5),
+                            : theme.colorScheme.errorContainer.withValues(
+                                alpha: 0.5,
+                              ),
                         foregroundColor: isResting
                             ? theme.colorScheme.onTertiaryContainer
                             : theme.colorScheme.onErrorContainer,
@@ -826,8 +756,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
               ],
             ),
           ),
-
-          // 🏋️‍♂️ Lista de Ejercicios
           Expanded(
             child: workout.exercises.isEmpty
                 ? Center(
@@ -837,7 +765,9 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                         Icon(
                           Icons.fitness_center_outlined,
                           size: 60,
-                          color: theme.colorScheme.outline.withOpacity(0.5),
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -865,19 +795,14 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Nombre del Ejercicio
                                 Text(
                                   ex.name,
                                   style: theme.textTheme.titleLarge!.copyWith(
                                     fontWeight: FontWeight.bold,
-                                    color: theme
-                                        .colorScheme
-                                        .primary, // Color primario para resaltar
+                                    color: theme.colorScheme.primary,
                                   ),
                                 ),
                                 const Divider(height: 24),
-
-                                // Encabezados de Columna (Asegurar que los textos sean visibles y centrados)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8.0,
@@ -909,9 +834,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(
-                                        width: 48,
-                                      ), // Espacio para el icono de check
+                                      const SizedBox(width: 48),
                                     ],
                                   ),
                                 ),
@@ -934,8 +857,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                                     );
                                   }).toList(),
                                 ),
-
-                                // Botón para añadir una nueva serie al ejercicio
                                 const SizedBox(height: 12),
                                 OutlinedButton.icon(
                                   onPressed: () {
@@ -967,8 +888,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                     },
                   ),
           ),
-
-          // 🎯 Botones de Acción (Pie de página)
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(

@@ -10,12 +10,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Estado y Controladores de lógica
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
-  bool _isLoading = false; // Estado para manejar el indicador de carga
+  bool _isLoading = false;
 
   final _authService = AuthService();
 
@@ -26,15 +25,13 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Lógica de inicio de sesión (MANTENIDA)
   void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true); // Iniciar carga
+      setState(() => _isLoading = true);
 
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
-      // Validación simple extra
       if (!email.contains("@")) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -89,22 +86,18 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } finally {
         if (mounted) {
-          setState(() => _isLoading = false); // Detener carga
+          setState(() => _isLoading = false);
         }
       }
     }
   }
 
-  // 🔑 NUEVA LÓGICA: Manejar el flujo de restablecimiento de contraseña
   void _handleForgotPassword() async {
-    final email = _emailController.text
-        .trim(); // Intentar usar el email ya escrito
+    final email = _emailController.text.trim();
 
-    // 1. Mostrar diálogo de confirmación/entrada de correo
     final inputEmail = await showDialog<String>(
       context: context,
       builder: (BuildContext dialogContext) {
-        // Usaremos un controlador local para el diálogo si el campo principal está vacío
         final dialogEmailController = TextEditingController(
           text: email.isNotEmpty && email.contains("@") ? email : "",
         );
@@ -158,14 +151,12 @@ class _LoginScreenState extends State<LoginScreen> {
       },
     );
 
-    // 2. Procesar el resultado del diálogo
     if (inputEmail != null && inputEmail.isNotEmpty) {
       setState(() => _isLoading = true);
       try {
         await _authService.sendPasswordResetEmail(inputEmail);
 
         if (mounted) {
-          // Notificar éxito al usuario
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -204,22 +195,16 @@ class _LoginScreenState extends State<LoginScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      // Se utiliza el color de fondo del tema
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(32.0),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth:
-                  450, // Ligeramente más ancho para un mejor diseño en tabletas
-            ),
+            constraints: const BoxConstraints(maxWidth: 450),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 🍏 Logo y Título
                 Icon(
-                  Icons
-                      .local_fire_department_rounded, // Icono representativo (fuerza y energía)
+                  Icons.local_fire_department_rounded,
                   size: 80,
                   color: theme.colorScheme.primary,
                 ),
@@ -240,7 +225,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // 📝 Formulario de Inicio de Sesión
                 Card(
                   elevation: 10,
                   shape: RoundedRectangleBorder(
@@ -253,7 +237,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Campo de Correo
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
@@ -278,7 +261,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 24),
 
-                          // Campo de Contraseña
                           TextFormField(
                             controller: _passwordController,
                             obscureText: !_isPasswordVisible,
@@ -314,15 +296,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             },
                           ),
                           const SizedBox(height: 40),
-
-                          // 🚀 Botón de Iniciar Sesión
                           SizedBox(
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton.icon(
-                              onPressed: _isLoading
-                                  ? null
-                                  : _handleLogin, // Deshabilitar si está cargando
+                              onPressed: _isLoading ? null : _handleLogin,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: theme.colorScheme.primary,
                                 foregroundColor: theme.colorScheme.onPrimary,
@@ -350,15 +328,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-
-                          // 🔑 Enlace a Olvidaste tu Contraseña
                           const SizedBox(height: 16),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
                               onPressed: _isLoading
                                   ? null
-                                  : _handleForgotPassword, // Deshabilitar si está cargando
+                                  : _handleForgotPassword,
                               child: Text(
                                 "¿Olvidaste tu contraseña?",
                                 style: theme.textTheme.bodyMedium!.copyWith(
@@ -375,8 +351,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
 
                 const SizedBox(height: 24),
-
-                // Enlace a Registro
                 TextButton(
                   onPressed: () {
                     if (!_isLoading) {

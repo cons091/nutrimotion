@@ -33,7 +33,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _handleRegister() async {
     if (_formKey.currentState!.validate()) {
-      // Intentamos parsear los valores numéricos
       final peso = double.tryParse(_pesoController.text.trim());
       final altura = double.tryParse(_alturaController.text.trim());
       final edad = int.tryParse(_edadController.text.trim());
@@ -56,8 +55,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
         return;
       }
-
-      // Llamada al servicio de autenticación
       final user = await _authService.registerUser(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -121,7 +118,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24.0),
           children: [
-            // 🎯 Subtítulo y contexto
             Text(
               "Necesitamos algunos datos para calcular tus requerimientos.",
               style: theme.textTheme.titleMedium!.copyWith(
@@ -130,8 +126,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-
-            // 📧 Credenciales
             TextFormField(
               controller: _emailController,
               decoration: const InputDecoration(
@@ -160,8 +154,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             Divider(color: theme.colorScheme.outlineVariant),
             const SizedBox(height: 16),
-
-            // 📏 Datos Físicos
             Text(
               "Datos Físicos",
               style: theme.textTheme.titleMedium!.copyWith(
@@ -169,11 +161,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Fila de Edad y Sexo
             Row(
               children: [
-                // Edad
                 Expanded(
                   child: TextFormField(
                     controller: _edadController,
@@ -189,10 +178,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                // Sexo (Usamos Dropdown más limpio)
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _sexo,
+                    initialValue: _sexo,
                     decoration: const InputDecoration(
                       labelText: "Sexo",
                       prefixIcon: Icon(Icons.person_outline),
@@ -207,11 +195,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Fila de Peso y Altura
             Row(
               children: [
-                // Peso
                 Expanded(
                   child: TextFormField(
                     controller: _pesoController,
@@ -227,7 +212,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                // Altura
                 Expanded(
                   child: TextFormField(
                     controller: _alturaController,
@@ -248,8 +232,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             Divider(color: theme.colorScheme.outlineVariant),
             const SizedBox(height: 16),
-
-            // 🎯 Estilo de Vida y Objetivos
             Text(
               "Objetivos y Estilo de Vida",
               style: theme.textTheme.titleMedium!.copyWith(
@@ -257,26 +239,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Nivel de Actividad
             DropdownButtonFormField<String>(
-              value: _actividad,
+              initialValue: _actividad,
               decoration: const InputDecoration(
                 labelText: "Nivel de actividad",
                 prefixIcon: Icon(Icons.directions_run_outlined),
               ),
               items: actividadOptions.map((String value) {
                 String display;
-                if (value == "Ligero")
+                if (value == "Ligero") {
                   display = "Actividad ligera (1-3x/sem)";
-                else if (value == "Moderado")
+                } else if (value == "Moderado") {
                   display = "Actividad moderada (3-5x/sem)";
-                else if (value == "Alto")
+                } else if (value == "Alto") {
                   display = "Actividad alta (6-7x/sem)";
-                else if (value == "Muy alto")
+                } else if (value == "Muy alto") {
                   display = "Actividad muy alta (trabajo físico)";
-                else
+                } else {
                   display = value;
+                }
 
                 return DropdownMenuItem<String>(
                   value: value,
@@ -286,24 +267,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onChanged: (value) => setState(() => _actividad = value!),
             ),
             const SizedBox(height: 16),
-
-            // Objetivo
             DropdownButtonFormField<String>(
-              value: _objetivo,
+              initialValue: _objetivo,
               decoration: const InputDecoration(
                 labelText: "Objetivo nutricional",
                 prefixIcon: Icon(Icons.flag_outlined),
               ),
               items: objetivoOptions.map((String value) {
                 String display;
-                if (value == "Déficit")
+                if (value == "Déficit") {
                   display = "Déficit calórico (perder peso)";
-                else if (value == "Superávit")
+                } else if (value == "Superávit") {
                   display = "Superávit calórico (ganar masa)";
-                else if (value == "Recomposición")
+                } else if (value == "Recomposición") {
                   display = "Recomposición corporal";
-                else
+                } else {
                   display = value;
+                }
 
                 return DropdownMenuItem<String>(
                   value: value,
@@ -313,16 +293,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onChanged: (value) => setState(() => _objetivo = value!),
             ),
             const SizedBox(height: 32),
-
-            // 🚀 Botón de Registro (Usa el estilo FilledButton del tema)
             FilledButton.icon(
               onPressed: _handleRegister,
               icon: const Icon(Icons.app_registration),
               label: const Text("CREAR CUENTA"),
             ),
             const SizedBox(height: 20),
-
-            // Enlace a Login
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(

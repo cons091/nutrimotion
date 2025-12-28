@@ -13,15 +13,13 @@ class EmptyWorkoutScreen extends StatefulWidget {
 }
 
 class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
-  late DateTime _startTime;
   late Stopwatch _stopwatch;
   late final _timerStream = Stream.periodic(const Duration(seconds: 1));
-  List<Exercise> _exercises = [];
+  final List<Exercise> _exercises = [];
 
   @override
   void initState() {
     super.initState();
-    _startTime = DateTime.now();
     _stopwatch = Stopwatch()..start();
   }
 
@@ -33,18 +31,17 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
   }
 
   void _addExercise() async {
-    // Paso 1: seleccionar grupo muscular
     final selectedGroup = await showDialog<String>(
       context: context,
       builder: (_) {
-        String? _selected = "Piernas"; // valor inicial
+        String? selected = "Piernas";
 
         return AlertDialog(
           title: const Text("Selecciona un grupo muscular"),
           content: StatefulBuilder(
             builder: (context, setStateDialog) {
               return DropdownButtonFormField<String>(
-                value: _selected,
+                initialValue: selected,
                 decoration: const InputDecoration(
                   labelText: "Grupo muscular",
                   prefixIcon: Icon(Icons.fitness_center),
@@ -57,7 +54,7 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
                   DropdownMenuItem(value: "Brazos", child: Text("Brazos")),
                   DropdownMenuItem(value: "FullBody", child: Text("Full Body")),
                 ],
-                onChanged: (value) => setStateDialog(() => _selected = value),
+                onChanged: (value) => setStateDialog(() => selected = value),
               );
             },
           ),
@@ -67,7 +64,7 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
               child: const Text("Cancelar"),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context, _selected),
+              onPressed: () => Navigator.pop(context, selected),
               child: const Text("Siguiente"),
             ),
           ],
@@ -77,21 +74,21 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
 
     if (selectedGroup == null) return;
 
-    // Paso 2: seleccionar ejercicio del grupo elegido
     final exerciseName = await Navigator.push<String>(
+      // ignore: use_build_context_synchronously
       context,
       MaterialPageRoute(
         builder: (_) => ExercisePickerScreen(group: selectedGroup),
       ),
     );
 
-    if (exerciseName == null) return;
+    if (!context.mounted || exerciseName == null) return;
 
-    // Paso 3: ingresar series, reps, peso
     List<TextEditingController> repsControllers = [TextEditingController()];
     List<TextEditingController> weightControllers = [TextEditingController()];
 
     showDialog(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (_) {
         return StatefulBuilder(
@@ -187,14 +184,14 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
     final session = TrainingSession(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       userId: userId,
-      title: "Entrenamiento libre", // ✅ nuevo campo requerido
+      title: "Entrenamiento libre",
       date: DateTime.now(),
       duration: duration,
       exercises: _exercises,
     );
 
     await TrainingSessionService().addSession(session);
-
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("Entrenamiento guardado 🏋️")));
@@ -210,7 +207,6 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Cronómetro
             StreamBuilder(
               stream: _timerStream,
               builder: (context, snapshot) {

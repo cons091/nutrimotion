@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nutrimotion/screens/training/workout_form_screen.dart';
 import 'package:nutrimotion/screens/training/workout_list_screen.dart';
-import 'package:nutrimotion/screens/training/workout_session_screen.dart'; // Usar la Session Screen para el entrenamiento vacío
+import 'package:nutrimotion/screens/training/workout_session_screen.dart';
 
 class TrainingScreen extends StatelessWidget {
   const TrainingScreen({super.key});
@@ -10,8 +10,7 @@ class TrainingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Widget auxiliar para crear las tarjetas de opción estilizadas
-    Widget _buildOptionCard({
+    Widget buildOptionCard({
       required String title,
       required String subtitle,
       required IconData icon,
@@ -31,7 +30,7 @@ class TrainingScreen extends StatelessWidget {
               leading: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.15),
+                  color: iconColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: iconColor, size: 28),
@@ -62,7 +61,6 @@ class TrainingScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // 🚀 Sección: Empezar Entrenamiento
           Text(
             "Empezar Entrenamiento",
             style: theme.textTheme.titleLarge!.copyWith(
@@ -72,7 +70,7 @@ class TrainingScreen extends StatelessWidget {
           const SizedBox(height: 15),
 
           // Entrenamiento vacío / Rápido
-          _buildOptionCard(
+          buildOptionCard(
             title: "Entrenamiento rápido (vacío)",
             subtitle: "Comienza un entrenamiento sin plantilla",
             icon: Icons.timer_outlined,
@@ -88,8 +86,7 @@ class TrainingScreen extends StatelessWidget {
             },
           ),
 
-          // Rutinas creadas
-          _buildOptionCard(
+          buildOptionCard(
             title: "Usar rutina guardada",
             subtitle: "Elige una de tus rutinas creadas",
             icon: Icons.list_alt_rounded,
@@ -104,7 +101,6 @@ class TrainingScreen extends StatelessWidget {
 
           const SizedBox(height: 30),
 
-          // 🛠️ Sección: Gestión de Rutinas
           Text(
             "Gestión de Rutinas",
             style: theme.textTheme.titleLarge!.copyWith(
@@ -113,8 +109,7 @@ class TrainingScreen extends StatelessWidget {
           ),
           const SizedBox(height: 15),
 
-          // Crear rutina
-          _buildOptionCard(
+          buildOptionCard(
             title: "Crear nueva rutina",
             subtitle: "Diseña tu rutina de ejercicios personalizada",
             icon: Icons.add_box_rounded,
@@ -127,8 +122,7 @@ class TrainingScreen extends StatelessWidget {
             },
           ),
 
-          // Ver/Editar rutinas (Redundante con "Usar rutina guardada", pero mantiene la lógica anterior)
-          _buildOptionCard(
+          buildOptionCard(
             title: "Ver mis rutinas",
             subtitle: "Edita o elimina tus rutinas guardadas",
             icon: Icons.folder_copy_rounded,
@@ -141,8 +135,7 @@ class TrainingScreen extends StatelessWidget {
             },
           ),
 
-          // Explorar rutinas (placeholder)
-          _buildOptionCard(
+          buildOptionCard(
             title: "Explorar rutinas (Comunidad)",
             subtitle: "Descubre rutinas prediseñadas por expertos",
             icon: Icons.explore_rounded,

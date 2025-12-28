@@ -4,9 +4,9 @@ class AppUser {
   final double? peso;
   final double? altura;
   final int? edad;
-  final String? sexo; // "Hombre" o "Mujer"
-  final String? actividad; // nivel de actividad física
-  final String? objetivo; // déficit, mantenimiento, superávit
+  final String? sexo;
+  final String? actividad;
+  final String? objetivo;
 
   AppUser({
     required this.uid,

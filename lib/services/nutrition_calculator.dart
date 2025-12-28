@@ -1,21 +1,13 @@
-// lib/services/nutrition_calculator.dart
-
 class NutritionCalculator {
-  // Constantes de Calorías por Gramo
   static const double proteinKcalPerGram = 4.0;
   static const double carbsKcalPerGram = 4.0;
   static const double fatKcalPerGram = 9.0;
 
-  // Definición de planes de Macronutrientes (Porcentajes)
-  // En lib/services/nutrition_calculator.dart
-
-  // Definición de planes de Macronutrientes (Porcentajes)
   static final Map<String, Map<String, double>> macroPlans = {
-    // Usamos los nombres completos y el valor en porcentaje (ej: 25.0, no 0.25)
     'Mantenimiento Balanceado': {
-      'Proteínas': 25.0, // Antes 'protein': 0.25
-      'Carbohidratos': 50.0, // Antes 'carbs': 0.50
-      'Grasas': 25.0, // Antes 'fat': 0.25
+      'Proteínas': 25.0,
+      'Carbohidratos': 50.0,
+      'Grasas': 25.0,
     },
     'Pérdida de Peso Alto en Proteína': {
       'Proteínas': 35.0,
@@ -33,7 +25,6 @@ class NutritionCalculator {
     'Carbohidratos': 4.0,
     'Grasas': 9.0,
   };
-  // Factores de Actividad (Nivel de Actividad)
   static final Map<String, Map<String, dynamic>> activityLevels = {
     'Sedentario': {
       'factor': 1.2,
@@ -60,32 +51,30 @@ class NutritionCalculator {
           'Ejercicio Intenso: 45-120 minutos de actividad con ritmo cardíaco elevado.',
     },
     'Muy Activo': {
-      'factor':
-          1.9, // Usaremos 1.9 para Muy Activo (similar a extra activo en algunas calculadoras)
+      'factor': 1.9,
       'description': 'Ejercicio intenso 6-7 veces por semana.',
       'detail':
           'Ejercicio Intenso: 45-120 minutos de actividad con ritmo cardíaco elevado.',
     },
     'Extra Activo': {
-      'factor': 2.0, // Factor más alto, o 1.9 si lo agrupas con 'Muy Activo'
+      'factor': 2.0,
       'description': 'Ejercicio muy intenso a diario, o trabajo físico.',
       'detail':
           'Ejercicio Muy Intenso: 2+ horas de actividad con ritmo cardíaco elevado.',
     },
   };
 
-  // Ajustes de Objetivo (Calorías a sumar/restar)
   static final Map<String, int> goalAdjustments = {
     'Mantener peso': 0,
 
     // Pérdida de Peso (Déficit)
-    'Pérdida leve (0.25 kg/sem)': -250, // Déficit diario de 250 kcal
-    'Pérdida moderada (0.5 kg/sem)': -500, // Déficit diario de 500 kcal
-    'Pérdida extrema (1.0 kg/sem)': -1000, // Déficit diario de 1000 kcal
+    'Pérdida leve (0.25 kg/sem)': -250,
+    'Pérdida moderada (0.5 kg/sem)': -500,
+    'Pérdida extrema (1.0 kg/sem)': -1000,
     // Ganancia de Peso (Superávit)
-    'Ganancia leve (0.25 kg/sem)': 250, // Superávit diario de 250 kcal
-    'Ganancia moderada (0.5 kg/sem)': 500, // Superávit diario de 500 kcal
-    'Ganancia extrema (1.0 kg/sem)': 1000, // Superávit diario de 1000 kcal
+    'Ganancia leve (0.25 kg/sem)': 250,
+    'Ganancia moderada (0.5 kg/sem)': 500,
+    'Ganancia extrema (1.0 kg/sem)': 1000,
   };
 
   /// 1A. Calcula la Tasa Metabólica Basal (TMB) usando la Ecuación Mifflin-St Jeor
@@ -106,7 +95,7 @@ class NutritionCalculator {
     return bmr;
   }
 
-  /// 1B. Calcula las Calorías Diarias Totales (TDEE ajustado por objetivo)
+  /// 1B. Calcula las Calorías Diarias Totales
   static double calculateTDEE({
     required double bmr,
     required String activityLevel,
@@ -137,12 +126,12 @@ class NutritionCalculator {
 
     final Map<String, double> macros = {};
 
-    // 1. Calcular calorías objetivo por macro (usando el plan %)
+    // 1. Calcular calorías objetivo por macro
     final proteinCalories = totalCalories * (plan['Proteínas']! / 100);
     final carbCalories = totalCalories * (plan['Carbohidratos']! / 100);
     final fatCalories = totalCalories * (plan['Grasas']! / 100);
 
-    // 2. Convertir calorías a gramos (usando la nueva constante caloriesPerGram)
+    // 2. Convertir calorías a gramos
     macros['Proteínas'] =
         proteinCalories / (caloriesPerGram['Proteínas'] ?? 4.0);
     macros['Carbohidratos'] =

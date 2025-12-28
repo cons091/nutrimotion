@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nutrimotion/models/workout_model.dart';
 import 'package:nutrimotion/screens/training/workout_form_screen.dart';
-import 'package:nutrimotion/screens/training/workout_session_screen.dart'; // Asumiendo que existe
+import 'package:nutrimotion/screens/training/workout_session_screen.dart';
 
 class WorkoutDetailScreen extends StatefulWidget {
   final Workout workout;
@@ -20,7 +20,6 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     _currentWorkout = widget.workout;
   }
 
-  // 🔄 Función para manejar la edición y actualización
   void _editWorkout() async {
     final updatedWorkout = await Navigator.push<Workout>(
       context,
@@ -29,12 +28,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       ),
     );
 
-    // Si se recibió una rutina actualizada (no es null)
     if (updatedWorkout != null) {
       setState(() {
         _currentWorkout = updatedWorkout;
       });
-      // Devolvemos el resultado al WorkoutListScreen para que se actualice
       if (mounted) {
         Navigator.pop(context, updatedWorkout);
       }
@@ -45,8 +42,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Función de ayuda para determinar el icono del día/grupo muscular
-    IconData _getDayIcon(String day) {
+    IconData getDayIcon(String day) {
       switch (day) {
         case "Piernas":
           return Icons.airline_seat_legroom_extra_rounded;
@@ -76,11 +72,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ℹ️ Información General
               Row(
                 children: [
                   Icon(
-                    _getDayIcon(_currentWorkout.day),
+                    getDayIcon(_currentWorkout.day),
                     color: theme.colorScheme.primary,
                     size: 30,
                   ),
@@ -104,7 +99,6 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               ),
               const Divider(thickness: 2),
 
-              // 🏋️‍♂️ Lista de Ejercicios
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -131,15 +125,13 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                           ),
                           const SizedBox(height: 10),
 
-                          // Estilo de tabla más limpio sin bordes completos
                           Table(
                             columnWidths: const {
-                              0: FlexColumnWidth(1.5), // Serie
-                              1: FlexColumnWidth(1.5), // Reps
-                              2: FlexColumnWidth(2.5), // Peso
+                              0: FlexColumnWidth(1.5),
+                              1: FlexColumnWidth(1.5),
+                              2: FlexColumnWidth(2.5),
                             },
                             children: [
-                              // Encabezado de la tabla
                               TableRow(
                                 decoration: BoxDecoration(
                                   color: theme.colorScheme.surfaceContainerHigh,
@@ -163,7 +155,6 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                   ),
                                 ],
                               ),
-                              // Filas de datos
                               ...ex.series.asMap().entries.map((entry) {
                                 final i = entry.key + 1;
                                 final s = entry.value;
@@ -177,7 +168,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                     ),
                                   ],
                                 );
-                              }).toList(),
+                              }),
                             ],
                           ),
                         ],
@@ -191,12 +182,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         ),
       ),
 
-      // ➕ Botones Flotantes Agrupados: Empezar y Editar (Alternativa al Appbar)
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // ✏️ Editar (Small FAB) - Si se prefiere no usar el AppBar Action
           FloatingActionButton.small(
             heroTag: "fab_edit",
             onPressed: _editWorkout,
@@ -207,11 +196,9 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           ),
           const SizedBox(height: 10),
 
-          // 🚀 Comenzar Rutina (Extended FAB principal)
           FloatingActionButton.extended(
             heroTag: "fab_start",
             onPressed: () {
-              // Navegar a la pantalla de sesión de entrenamiento
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -233,7 +220,6 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     );
   }
 
-  // Widget auxiliar para construir celdas de tabla estilizadas
   Widget _buildTableCell(
     String text, {
     bool isHeader = false,

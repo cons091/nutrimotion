@@ -14,19 +14,17 @@ class SplashScreen extends StatelessWidget {
       body: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
-          // 1. Estado de espera
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 🏆 Branding: NutriMotion (Consistente con Login)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
                         Icons.directions_run_rounded,
-                        size: 60, // Tamaño más grande para Splash
+                        size: 60,
                         color: theme.colorScheme.primary,
                       ),
                       const SizedBox(width: 10),
@@ -34,28 +32,21 @@ class SplashScreen extends StatelessWidget {
                         'NutriMotion',
                         style: theme.textTheme.displayMedium!.copyWith(
                           fontWeight: FontWeight.w900,
-                          color: theme.colorScheme.onBackground,
+                          color: theme.colorScheme.onSurface,
                           letterSpacing: -1.0,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 40),
-                  CircularProgressIndicator(
-                    color:
-                        theme.colorScheme.primary, // Usamos el color principal
-                  ),
+                  CircularProgressIndicator(color: theme.colorScheme.primary),
                   const SizedBox(height: 80),
                 ],
               ),
             );
-          }
-          // 2. Usuario logueado
-          else if (snapshot.hasData) {
+          } else if (snapshot.hasData) {
             return const HomeScreen();
-          }
-          // 3. No hay usuario logueado
-          else {
+          } else {
             return const LoginScreen();
           }
         },

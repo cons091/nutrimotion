@@ -17,9 +17,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
 
-  // Lista temporal de controladores para el diálogo de series.
-  // Es importante que sean listas locales al método _addExercise, pero las movemos
-  // al estado para poder manejar la edición/adición dentro del diálogo.
   List<Exercise> _exercises = [];
   String _selectedDay = "Piernas";
 
@@ -31,7 +28,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
         text: widget.existingWorkout!.title,
       );
       _selectedDay = widget.existingWorkout!.day;
-      // Clonar la lista para evitar modificar la original antes de guardar
       _exercises = List.from(widget.existingWorkout!.exercises);
     } else {
       _titleController = TextEditingController();
@@ -45,7 +41,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
     super.dispose();
   }
 
-  // LÓGICA: Mantenida y solo mejorada la UI del diálogo
   void _addExercise() async {
     final exerciseName = await Navigator.push(
       context,
@@ -56,7 +51,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
 
     if (exerciseName == null) return;
 
-    // Controladores temporales para el diálogo de configuración
     List<TextEditingController> repsControllers = [
       TextEditingController(text: '8'),
     ];
@@ -64,7 +58,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
       TextEditingController(text: '0'),
     ];
 
-    // Lista temporal para manejar las series en el diálogo (MANTENIDA POR CONSISTENCIA)
     List<SeriesEntry> tempSeries = [SeriesEntry(reps: 8, weight: 0)];
 
     if (!mounted) return;
@@ -86,7 +79,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 16),
-                    // Lista de series
                     Column(
                       children: List.generate(tempSeries.length, (i) {
                         return Padding(
@@ -129,7 +121,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                   textAlign: TextAlign.center,
                                 ),
                               ),
-                              // Botón de eliminar serie
                               IconButton(
                                 icon: const Icon(
                                   Icons.remove_circle_outline,
@@ -137,7 +128,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                 ),
                                 onPressed: () {
                                   if (tempSeries.length > 1) {
-                                    // No permitir eliminar la última serie
                                     setStateDialog(() {
                                       repsControllers.removeAt(i);
                                       weightControllers.removeAt(i);
@@ -159,13 +149,11 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                         );
                       }),
                     ),
-                    // Botón para añadir serie
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton.icon(
                         onPressed: () {
                           setStateDialog(() {
-                            // Agregar nuevos controladores para la nueva serie
                             repsControllers.add(
                               TextEditingController(text: '8'),
                             );
@@ -191,24 +179,16 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                   onPressed: () {
                     final newSeries = <SeriesEntry>[];
                     bool hasInvalidValue = false;
-
-                    // 🎯 NUEVA VALIDACIÓN DE CERO AQUÍ
                     for (var i = 0; i < repsControllers.length; i++) {
-                      // Intentar parsear los valores. Si no es un número, o es <= 0, es inválido.
                       final reps = int.tryParse(repsControllers[i].text) ?? 0;
                       final weight =
                           double.tryParse(weightControllers[i].text) ?? 0;
-
-                      // Validación: Reps y Weight deben ser > 0.
-                      // Nota: Si quieres permitir peso corporal (weight = 0), ajusta la condición.
-                      // La regla que indicaste fue: "no pueden haber valores 0 ni en reps, ni en peso"
                       if (reps <= 0 || weight <= 0) {
                         hasInvalidValue = true;
                         break;
                       }
                       newSeries.add(SeriesEntry(reps: reps, weight: weight));
                     }
-                    // 🎯 FIN DE NUEVA VALIDACIÓN
 
                     if (hasInvalidValue) {
                       if (mounted) {
@@ -229,10 +209,12 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                         Exercise(name: exerciseName, series: newSeries),
                       );
                     });
-
-                    // Limpiar controladores
-                    for (var c in repsControllers) c.dispose();
-                    for (var c in weightControllers) c.dispose();
+                    for (var c in repsControllers) {
+                      c.dispose();
+                    }
+                    for (var c in weightControllers) {
+                      c.dispose();
+                    }
 
                     if (mounted) Navigator.pop(context);
                   },
@@ -246,7 +228,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
     );
   }
 
-  // LÓGICA: Mantenida, con validación ligeramente mejorada
   void _saveWorkout() {
     if (!_formKey.currentState!.validate()) return;
 
@@ -258,8 +239,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
       );
       return;
     }
-
-    // Validación final para repeticiones (peso puede ser 0)
     for (final ex in _exercises) {
       for (final s in ex.series) {
         if (s.reps <= 0) {
@@ -298,7 +277,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
     }
   }
 
-  // 🖼️ INTERFAZ DE USUARIO (BUILD)
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -323,7 +301,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 🏷️ Título de la Rutina
                     TextFormField(
                       controller: _titleController,
                       decoration: const InputDecoration(
@@ -339,9 +316,8 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // 🗓️ Selector de Día / Grupo Muscular
                     DropdownButtonFormField<String>(
-                      value: _selectedDay,
+                      initialValue: _selectedDay,
                       decoration: const InputDecoration(
                         labelText: "Día / Grupo muscular",
                         prefixIcon: Icon(Icons.fitness_center_rounded),
@@ -381,7 +357,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                     ),
                     const SizedBox(height: 30),
 
-                    // 📋 Lista de Ejercicios
                     Text(
                       "Ejercicios de la rutina (${_exercises.length})",
                       style: theme.textTheme.titleMedium!.copyWith(
@@ -409,7 +384,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                             itemBuilder: (context, index) {
                               final ex = _exercises[index];
 
-                              // Usar Dismissible para eliminar con swipe
                               return Dismissible(
                                 key: ValueKey(ex.name + index.toString()),
                                 direction: DismissDirection.endToStart,
@@ -450,7 +424,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        // Título del ejercicio
                                         Text(
                                           ex.name,
                                           style: theme.textTheme.titleMedium!
@@ -461,17 +434,13 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                               ),
                                         ),
                                         const SizedBox(height: 10),
-
-                                        // Encabezados de la tabla de series
                                         Padding(
                                           padding: const EdgeInsets.only(
                                             bottom: 4.0,
                                           ),
                                           child: Row(
                                             children: [
-                                              const SizedBox(
-                                                width: 45,
-                                              ), // Espacio para "Serie N"
+                                              const SizedBox(width: 45),
                                               Expanded(
                                                 child: Text(
                                                   "REPS",
@@ -488,16 +457,12 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                                       .labelSmall,
                                                 ),
                                               ),
-                                              const SizedBox(
-                                                width: 48,
-                                              ), // Espacio para el botón de eliminar
+                                              const SizedBox(width: 48),
                                             ],
                                           ),
                                         ),
                                         const Divider(height: 1, thickness: 1),
                                         const SizedBox(height: 8),
-
-                                        // Series editables
                                         ...ex.series.asMap().entries.map((
                                           entry,
                                         ) {
@@ -602,7 +567,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                                     },
                                                   ),
                                                 ),
-                                                // Botón para eliminar serie individualmente
                                                 IconButton(
                                                   icon: Icon(
                                                     Icons.close_rounded,
@@ -630,9 +594,8 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                               ],
                                             ),
                                           );
-                                        }).toList(),
+                                        }),
 
-                                        // Botón de añadir serie por ejercicio
                                         Align(
                                           alignment: Alignment.centerRight,
                                           child: TextButton.icon(
@@ -642,7 +605,7 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
                                                   SeriesEntry(
                                                     reps: 8,
                                                     weight: 0,
-                                                  ), // Valores por defecto sugeridos
+                                                  ),
                                                 );
                                               });
                                             },
@@ -667,7 +630,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
             ),
           ),
 
-          // ➕ Botón Añadir Ejercicio (siempre visible)
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 20.0,
@@ -690,7 +652,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
             ),
           ),
 
-          // 💾 Botón de Guardar
           Padding(
             padding: const EdgeInsets.fromLTRB(20.0, 0, 20.0, 20.0),
             child: SizedBox(

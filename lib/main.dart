@@ -21,24 +21,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Definimos la semilla de color principal (un verde más brillante y activo)
-    const Color primaryColorSeed = Color(0xFF4CAF50); // Verde brillante
+    const Color primaryColorSeed = Color(0xFF4CAF50);
 
     return MaterialApp(
       title: 'NutriMotion',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // Generamos un esquema de colores a partir de la semilla
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColorSeed,
-          // Un esquema de colores más oscuro (dark scheme) podría ser atractivo para fitness apps,
-          // pero mantendremos el claro por defecto.
-        ),
-
-        // 🔑 Mejoramos la fuente tipográfica si es necesario (ej: Google Fonts)
-        // Por ahora, usaremos la tipografía Material 3 por defecto que es moderna.
-
-        // Estilo de botones elevado (FilledButton)
+        colorScheme: ColorScheme.fromSeed(seedColor: primaryColorSeed),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
             shape: RoundedRectangleBorder(
@@ -52,7 +41,6 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
-        // Estilo de campos de texto
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           contentPadding: const EdgeInsets.symmetric(
@@ -65,8 +53,7 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: "/",
       routes: {
-        "/": (context) =>
-            const SplashScreen(), // Establecer splash como ruta inicial
+        "/": (context) => const SplashScreen(),
         "/login": (context) => const LoginScreen(),
         "/register": (context) => const RegisterScreen(),
         "/home": (context) => const HomeScreen(),

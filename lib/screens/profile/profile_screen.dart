@@ -8,7 +8,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:nutrimotion/models/user_model.dart';
 import 'package:nutrimotion/services/nutrition_calculator.dart';
-import 'package:nutrimotion/screens/nutrition/nutrition_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -84,65 +83,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _uploadImage(XFile? pickedFile) async {
-    if (pickedFile == null) return;
-
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final file = File(pickedFile.path);
-      // Referencia al storage: profile_photos/UID_USUARIO.jpg
-      final storageRef = FirebaseStorage.instance.ref().child(
-        'profile_photos/${currentUser.uid}.jpg',
-      );
-
-      // 1. Subir el archivo
-      await storageRef.putFile(file);
-
-      // 2. OBTENER LA NUEVA URL DE DESCARGA (¡CRÍTICO!)
-      final newPhotoUrl = await storageRef.getDownloadURL();
-
-      // 3. Actualizar Firestore con la nueva URL
-      final userDocRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.uid);
-
-      // Actualizamos solo el campo photoUrl
-      await userDocRef.update({'photoUrl': newPhotoUrl});
-
-      // 4. Actualizar el estado local para forzar el redibujado
-      if (mounted) {
-        setState(() {
-          _photoUrl = newPhotoUrl; // 👈 Usamos la URL recién obtenida
-          _isLoading = false;
-        });
-      }
-
-      // Opcional: Mostrar un mensaje de éxito
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Foto de perfil actualizada con éxito.')),
-      );
-    } catch (e) {
-      print('Error al subir la imagen: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al subir la foto: ${e.toString()}')),
-      );
-    }
-  }
-
   Future<void> _pickImage() async {
     try {
-      // 1. Seleccionar imagen (Galería)
       final pickedFile = await picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 50,
@@ -156,28 +98,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) throw Exception("Usuario no autenticado");
 
-      // 2. Referencia al Storage
       final storageRef = FirebaseStorage.instance.ref().child(
         'profile_photos/${currentUser.uid}.jpg',
       );
 
-      // 3. Subir el archivo (Lógica Compatible Web/Móvil)
       if (kIsWeb) {
-        // En WEB: Usamos putData con los bytes
         final bytes = await pickedFile.readAsBytes();
         await storageRef.putData(
           bytes,
           SettableMetadata(contentType: 'image/jpeg'),
         );
       } else {
-        // En MÓVIL: Usamos putFile con el objeto File
         await storageRef.putFile(File(pickedFile.path));
       }
-
-      // 4. Obtener URL
       final downloadUrl = await storageRef.getDownloadURL();
 
-      // 5. Actualizar Firestore
       await FirebaseFirestore.instance
           .collection("users")
           .doc(currentUser.uid)
@@ -287,8 +222,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // --- WIDGETS AUXILIARES ---
-
   Widget _buildInfoTile(
     BuildContext context,
     String title,
@@ -349,7 +282,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: DropdownButtonFormField<String>(
-        value: _sexo,
+        initialValue: _sexo,
         decoration: const InputDecoration(
           labelText: "Sexo Biológico",
           prefixIcon: Icon(Icons.transgender_outlined),
@@ -398,7 +331,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 🖼️ HEADER DE PERFIL Y FOTO
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
@@ -443,14 +375,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     email,
                     style: theme.textTheme.titleMedium!.copyWith(
-                      color: theme.colorScheme.onPrimary.withOpacity(0.9),
+                      color: theme.colorScheme.onPrimary.withValues(alpha: 0.9),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // 📊 TARJETA DE DATOS FÍSICOS
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Card(
@@ -472,7 +403,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const Divider(height: 1),
 
-                    // Fila de Peso
                     _isEditing
                         ? _buildEditableTile(
                             context,
@@ -491,7 +421,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                     const Divider(indent: 16, endIndent: 16),
 
-                    // Fila de Altura
                     _isEditing
                         ? _buildEditableTile(
                             context,
@@ -510,7 +439,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                     const Divider(indent: 16, endIndent: 16),
 
-                    // Fila de Edad
                     _isEditing
                         ? _buildEditableTile(
                             context,
@@ -529,7 +457,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                     const Divider(indent: 16, endIndent: 16),
 
-                    // Fila de Sexo
                     _isEditing
                         ? _buildSexoEditableTile(context)
                         : _buildInfoTile(
@@ -540,12 +467,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                     const Divider(indent: 16, endIndent: 16),
 
-                    // Fila de Objetivo
                     _isEditing
                         ? Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: DropdownButtonFormField<String>(
-                              value:
+                              initialValue:
                                   NutritionCalculator.goalAdjustments.keys
                                       .contains(_objetivo)
                                   ? _objetivo
@@ -579,7 +505,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            // ⚙️ OPCIONES ADICIONALES
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: ListTile(
@@ -595,13 +520,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 onTap: () async {
                   await FirebaseAuth.instance.signOut();
-                  if (mounted) {
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      "/login",
-                      (route) => false,
-                    );
-                  }
+                  if (!context.mounted) return;
+
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    "/login",
+                    (route) => false,
+                  );
                 },
               ),
             ),
@@ -610,7 +535,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
 
-      // 📝 BOTÓN FLOTANTE
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           if (_isEditing) {

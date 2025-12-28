@@ -20,12 +20,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   @override
   void initState() {
     super.initState();
-    // 💡 La inicialización ya se realizó.
-    // Ahora solo cargamos los alimentos directamente.
     _searchFuture = _foodService.getAllFoods();
   }
-
-  // ❌ ELIMINADO: El método _initializeAndLoadFoods() ya no es necesario.
 
   @override
   void dispose() {
@@ -51,7 +47,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       ),
       body: Column(
         children: [
-          // 🔍 Campo de Búsqueda
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -76,8 +71,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
               onChanged: _performSearch,
             ),
           ),
-
-          // 📊 Resultados de la Búsqueda
           Expanded(
             child: FutureBuilder<List<FoodItem>>(
               future: _searchFuture,
@@ -87,7 +80,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 }
 
                 if (snapshot.hasError) {
-                  // Muestra el error de permisos aquí
                   return Center(
                     child: Text('Error al cargar alimentos: ${snapshot.error}'),
                   );
@@ -116,7 +108,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     );
   }
 
-  // 📦 Widget auxiliar para mostrar la información nutricional de un alimento
   Widget _buildFoodItemTile(ThemeData theme, FoodItem food) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),

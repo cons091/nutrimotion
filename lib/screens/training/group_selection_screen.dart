@@ -1,10 +1,7 @@
-// lib/screens/training/group_selection_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:nutrimotion/screens/training/exercise_picker_screen.dart';
 import 'package:nutrimotion/utils/exercise_list.dart';
 
-// 🚀 FUNCIÓN MOVÍDA A NIVEL GLOBAL (TOP-LEVEL)
 IconData _getDayIcon(String day) {
   switch (day) {
     case "Piernas":
@@ -27,8 +24,6 @@ IconData _getDayIcon(String day) {
 class GroupSelectionScreen extends StatelessWidget {
   const GroupSelectionScreen({super.key});
 
-  // ❌ Ya no está aquí: IconData _getDayIcon(String day) { ... }
-
   @override
   Widget build(BuildContext context) {
     final groups = ExerciseList.exercisesByGroup.keys.toList();
@@ -50,7 +45,7 @@ class GroupSelectionScreen extends StatelessWidget {
             elevation: 2,
             child: ListTile(
               leading: Icon(
-                _getDayIcon(group), // 🎯 Ahora la función es accesible
+                _getDayIcon(group),
                 color: theme.colorScheme.primary,
               ),
               title: Text(group, style: theme.textTheme.titleMedium),
@@ -64,6 +59,7 @@ class GroupSelectionScreen extends StatelessWidget {
                 );
 
                 if (exerciseName != null) {
+                  // ignore: use_build_context_synchronously
                   Navigator.pop(context, exerciseName);
                 }
               },

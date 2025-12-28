@@ -1,5 +1,3 @@
-// lib/models/meal_entry_model.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'food_model.dart';
 
@@ -54,8 +52,6 @@ class MealEntry {
         map['foodItem'] as Map<String, dynamic>?;
 
     if (foodItemMap == null) {
-      // Si el documento está corrupto, retornar una entrada de fallback.
-      // Esto previene el error "The method '[]' was called on null" y el paso de 'null' a FoodItem.fromMap.
       return MealEntry(
         id: id,
         foodItem: FoodItem(

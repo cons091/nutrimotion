@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:nutrimotion/models/training_session_model.dart';
 import 'package:nutrimotion/services/training_session_service.dart';
-import 'package:intl/intl.dart'; // Necesario para DateFormat y NumberFormat
+import 'package:intl/intl.dart';
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -20,7 +20,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
   String? _selectedGroup;
   String? _selectedExercise;
 
-  // Mapeo de grupo muscular → ejercicios
   final Map<String, List<String>> _groupExercises = {
     "Pecho": [
       "Press de banca con barra",
@@ -77,20 +76,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
     }
   }
 
-  /// Devuelve todos los ejercicios del grupo seleccionado
   List<String> get _availableExercises {
     if (_selectedGroup == null) return [];
     return _groupExercises[_selectedGroup!] ?? [];
   }
 
-  /// Obtiene los datos del ejercicio seleccionado para graficar
   List<Map<String, dynamic>> _getExerciseHistory(
     List<TrainingSession> sessions,
   ) {
     if (_selectedExercise == null) return [];
     final history = <Map<String, dynamic>>[];
 
-    // Mapa para agrupar por fecha y calcular el peso promedio por sesión
     final Map<DateTime, List<double>> weightsByDate = {};
 
     for (final session in sessions) {
@@ -99,14 +95,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
           .toList();
 
       if (matching.isNotEmpty) {
-        // Normalizamos la fecha a medianoche para agrupar por día
         final sessionDate = DateTime(
           session.date.year,
           session.date.month,
           session.date.day,
         );
 
-        // Obtenemos todos los pesos de todas las series de ese ejercicio en esa sesión
         final allWeights = matching
             .expand((e) => e.series)
             .map((s) => s.weight ?? 0.0)
@@ -116,7 +110,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
       }
     }
 
-    // Calcular el promedio de peso efectivo (por serie) por fecha
     weightsByDate.forEach((date, weights) {
       if (weights.isNotEmpty) {
         final avgWeight =
@@ -168,9 +161,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 const Divider(),
                 const SizedBox(height: 8),
 
-                // Selección de grupo muscular
                 DropdownButtonFormField<String>(
-                  value: _selectedGroup,
+                  initialValue: _selectedGroup,
                   decoration: _buildInputDecoration(theme, "Grupo Muscular"),
                   items: _groupExercises.keys
                       .map(
@@ -187,9 +179,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Selección de ejercicio
                 DropdownButtonFormField<String>(
-                  value: _selectedExercise,
+                  initialValue: _selectedExercise,
                   decoration: _buildInputDecoration(
                     theme,
                     "Ejercicio Específico",
@@ -212,15 +203,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         ? "Selecciona un grupo primero"
                         : "Ejercicio Específico",
                     style: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant.withOpacity(
-                        0.5,
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.5,
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
 
-                // 📊 Gráfico de Progreso
                 if (_selectedExercise == null)
                   _buildEmptyState(
                     "Selecciona un ejercicio para ver tu evolución 📈",
@@ -241,7 +231,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  // Helper para el estilo de los Dropdowns
   InputDecoration _buildInputDecoration(ThemeData theme, String label) {
     return InputDecoration(
       labelText: label,
@@ -255,7 +244,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       enabledBorder: OutlineInputBorder(
         borderRadius: const BorderRadius.all(Radius.circular(12)),
         borderSide: BorderSide(
-          color: theme.colorScheme.outline.withOpacity(0.5),
+          color: theme.colorScheme.outline.withValues(alpha: 0.5),
         ),
       ),
     );
@@ -271,7 +260,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
             Icon(
               icon,
               size: 80,
-              color: theme.colorScheme.outline.withOpacity(0.5),
+              color: theme.colorScheme.outline.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -294,7 +283,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
         .map((e) => FlSpot(e.key.toDouble(), e.value['weight'] as double))
         .toList();
 
-    // 1. Cálculo de Ejes Y MEJORADO (Se mantiene igual)
     double minWeight = data
         .map((e) => e['weight'] as double)
         .reduce((a, b) => a < b ? a : b);
@@ -305,12 +293,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
     double minY = 0;
     double maxY = maxWeight;
 
-    // Forzamos un margen para evitar que los puntos toquen los bordes
     if (data.length <= 2 || (maxWeight - minWeight) < 1.0) {
       minY = (minWeight - 5).clamp(0, minWeight);
       maxY = maxWeight + 5;
     } else {
-      // Damos un margen más sutil (10% del rango)
       final padding = (maxWeight - minWeight) * 0.1;
       minY = (minWeight - padding).clamp(0, minWeight);
       maxY = maxWeight + padding;
@@ -328,9 +314,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        // Contenedor para la gráfica
         AspectRatio(
-          // 🚀 MEJORA 1: Mayor altura para el gráfico
           aspectRatio: 1.2,
           child: Container(
             padding: const EdgeInsets.all(8),
@@ -361,12 +345,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   rightTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  // Títulos del Eje Y
                   leftTitles: AxisTitles(
                     axisNameWidget: const Text("Peso (kg)"),
                     sideTitles: SideTitles(
                       showTitles: true,
-                      // 🚀 MEJORA 3a: Más espacio para las etiquetas del Eje Y
                       reservedSize: 50,
                       getTitlesWidget: (value, meta) {
                         return Text(
@@ -376,21 +358,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       },
                     ),
                   ),
-                  // Títulos del Eje X
                   bottomTitles: AxisTitles(
                     axisNameWidget: const Text("Fecha de Sesión"),
                     sideTitles: SideTitles(
                       showTitles: true,
-                      // 🚀 MEJORA 2: Mostrar una etiqueta cada 3 puntos para dar aire
                       interval: 3,
-                      // 🚀 MEJORA 3b: Más espacio para las etiquetas del Eje X
                       reservedSize: 45,
                       getTitlesWidget: (value, meta) {
                         final index = value.toInt();
                         if (index < 0 || index >= data.length) {
                           return const Text('');
                         }
-                        // Solo mostramos etiquetas en los intervalos correctos
                         if (index % 3 != 0) {
                           return Container();
                         }
@@ -402,7 +380,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           angle: -45 * (3.14159 / 180),
                           space: 10,
                           child: Text(
-                            // 🚀 MEJORA 2b: Formato más compacto (ej: 01/Nov)
                             DateFormat('dd/MMM', 'es_ES').format(date),
                             style: theme.textTheme.labelSmall,
                           ),
@@ -439,11 +416,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     ),
                     belowBarData: BarAreaData(
                       show: true,
-                      color: theme.colorScheme.primary.withOpacity(0.1),
+                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
                     ),
                   ),
                 ],
-                // Tooltip
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipItems: (touchedSpots) {
@@ -477,7 +453,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ),
 
         const SizedBox(height: 24),
-        // 📋 Historial en formato de tabla (se mantiene igual)
         Text(
           "Historial de Registros",
           style: theme.textTheme.titleMedium!.copyWith(
@@ -490,7 +465,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  // Widget para la tabla de historial
   Widget _buildHistoryTable(List<Map<String, dynamic>> data, ThemeData theme) {
     return Card(
       elevation: 1,
@@ -498,7 +472,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
         padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
-            // Encabezado
             Container(
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainer,
@@ -524,7 +497,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
               ),
             ),
 
-            // Filas de Datos
             ...data.map((item) {
               final date = item['date'] as DateTime;
               final weight = item['weight'] as double;
@@ -547,7 +519,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),

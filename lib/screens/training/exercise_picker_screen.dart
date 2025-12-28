@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nutrimotion/utils/exercise_list.dart'; // Asegúrate de que este import sea correcto
+import 'package:nutrimotion/utils/exercise_list.dart';
 
 class ExercisePickerScreen extends StatelessWidget {
   final String group;
@@ -50,7 +50,6 @@ class ExercisePickerScreen extends StatelessWidget {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
-                      // Devolver el nombre del ejercicio seleccionado
                       Navigator.pop(context, exercise);
                     },
                   ),
