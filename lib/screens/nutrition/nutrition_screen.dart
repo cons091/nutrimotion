@@ -171,7 +171,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
     double consumedCarbs = 0;
     double consumedFat = 0;
 
-    // 🚀 Iterar sobre la nueva lista de estado _allEntriesForDay
     for (var entry in _allEntriesForDay) {
       consumedCalories += entry.totalCalories;
       consumedProtein += entry.totalProtein;

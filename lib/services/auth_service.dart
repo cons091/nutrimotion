@@ -7,7 +7,6 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Registro
   Future<AppUser?> registerUser({
     required String email,
     required String password,
