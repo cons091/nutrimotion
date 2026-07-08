@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:nutrimotion/models/training_session_model.dart';
 import 'package:nutrimotion/services/training_session_service.dart';
+import 'package:nutrimotion/utils/exercise_list.dart';
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -16,52 +19,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
   List<TrainingSession> _sessions = [];
   bool _loading = true;
 
+  /// Suscripción al stream de sesiones: se cancela en [dispose] para no
+  /// seguir escuchando (ni llamando a setState) tras salir de la pantalla.
+  StreamSubscription<List<TrainingSession>>? _sessionsSub;
+
   String? _selectedGroup;
   String? _selectedExercise;
-
-  // Mapeo de grupo muscular → ejercicios
-  final Map<String, List<String>> _groupExercises = {
-    "Pecho": [
-      "Press de banca con barra",
-      "Press inclinado con mancuernas",
-      "Aperturas con mancuernas en banco plano",
-      "Fondos en paralelas",
-      "Cruces en polea alta",
-    ],
-    "Espalda": [
-      "Dominadas",
-      "Remo con barra",
-      "Peso muerto convencional",
-      "Remo en polea baja",
-      "Pull-over en polea",
-    ],
-    "Piernas": [
-      "Sentadilla con barra",
-      "Prensa inclinada",
-      "Zancadas con mancuernas",
-      "Peso muerto rumano",
-      "Curl femoral en máquina",
-      "Extensiones de cuádriceps en máquina",
-    ],
-    "Hombros": [
-      "Press militar con barra",
-      "Elevaciones laterales",
-      "Press Arnold",
-      "Remo al mentón",
-    ],
-    "Brazos": [
-      "Curl con barra Z",
-      "Curl martillo",
-      "Press francés con barra Z",
-      "Extensión en polea con cuerda",
-    ],
-    "FullBody": [
-      "Sentadilla frontal",
-      "Press banca",
-      "Peso muerto",
-      "Press militar",
-    ],
-  };
 
   @override
   void initState() {
@@ -69,9 +32,15 @@ class _ProgressScreenState extends State<ProgressScreen> {
     _loadSessions();
   }
 
-  Future<void> _loadSessions() async {
-    final userId = FirebaseAuth.instance.currentUser!.uid;
-    sessionService.getSessions(userId).listen((sessions) {
+  void _loadSessions() {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    _sessionsSub = sessionService.getSessions(userId).listen((sessions) {
+      if (!mounted) return;
       setState(() {
         _sessions = sessions;
         _loading = false;
@@ -79,11 +48,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _sessionsSub?.cancel();
+    super.dispose();
+  }
+
   /// Devuelve todos los ejercicios del grupo seleccionado
+  /// (misma lista que usa el picker al entrenar: los nombres coinciden).
   List<String> get _availableExercises {
     if (_selectedGroup == null) return [];
-    final targetList = _groupExercises[_selectedGroup!] ?? [];
-    return targetList; // ahora no filtramos por sesiones
+    return ExerciseList.exercisesByGroup[_selectedGroup!] ?? [];
   }
 
   /// Obtiene los datos del ejercicio seleccionado para graficar
@@ -122,20 +97,24 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "Selecciona una zona y un ejercicio:",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    "Selecciona una zona y un ejercicio",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1B3B1F),
+                    ),
                   ),
                   const SizedBox(height: 16),
 
                   // Selección de grupo muscular
                   DropdownButtonFormField<String>(
-                    value: _selectedGroup,
+                    initialValue: _selectedGroup,
                     hint: const Text("Seleccionar grupo muscular"),
-                    items: _groupExercises.keys
+                    items: ExerciseList.groups
                         .map(
                           (group) => DropdownMenuItem(
                             value: group,
-                            child: Text(group),
+                            child: Text(ExerciseList.labelFor(group)),
                           ),
                         )
                         .toList(),
@@ -151,7 +130,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   // Selección de ejercicio
                   if (_selectedGroup != null)
                     DropdownButtonFormField<String>(
-                      value: _selectedExercise,
+                      initialValue: _selectedExercise,
                       hint: const Text("Seleccionar ejercicio"),
                       items: _availableExercises
                           .map(
@@ -171,24 +150,38 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
                   Expanded(
                     child: _selectedExercise == null
-                        ? const Center(
-                            child: Text(
-                              "Selecciona un ejercicio para ver tu evolución 📈",
-                              style: TextStyle(fontSize: 16),
-                            ),
+                        ? _emptyState(
+                            Icons.insights_outlined,
+                            "Selecciona un ejercicio\npara ver tu evolución",
                           )
                         : _exerciseHistory.isEmpty
-                        ? const Center(
-                            child: Text(
-                              "No hay datos aún para este ejercicio",
-                              style: TextStyle(fontSize: 16),
-                            ),
+                        ? _emptyState(
+                            Icons.hourglass_empty,
+                            "No hay datos aún para este ejercicio.\n¡Entrena y vuelve!",
                           )
                         : _buildChart(),
                   ),
                 ],
               ),
             ),
+    );
+  }
+
+  /// Estado vacío con icono, para guiar al usuario.
+  Widget _emptyState(IconData icon, String message) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 56, color: Colors.grey.shade400),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
+          ),
+        ],
+      ),
     );
   }
 
@@ -201,15 +194,23 @@ class _ProgressScreenState extends State<ProgressScreen> {
         .map((e) => FlSpot(e.key.toDouble(), e.value['weight'] as double))
         .toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Progreso de $_selectedExercise",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        Expanded(
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Progreso de $_selectedExercise",
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1B3B1F),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
           child: LineChart(
             LineChartData(
               minY: 0,
@@ -239,7 +240,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
               lineBarsData: [
                 LineChartBarData(
                   isCurved: true,
-                  color: Colors.green,
+                  color: Theme.of(context).colorScheme.primary,
                   barWidth: 3,
                   spots: spots,
                   dotData: const FlDotData(show: true),
@@ -248,12 +249,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        const Text(
-          "Eje X: Fecha | Eje Y: Peso promedio (kg)",
-          style: TextStyle(fontSize: 12, color: Colors.grey),
+            const SizedBox(height: 10),
+            const Text(
+              "Eje X: Fecha | Eje Y: Peso promedio (kg)",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

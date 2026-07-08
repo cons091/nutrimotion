@@ -94,7 +94,7 @@ class WorkoutDetailScreen extends StatelessWidget {
               builder: (_) => WorkoutFormScreen(existingWorkout: workout),
             ),
           );
-          if (updatedWorkout != null) {
+          if (updatedWorkout != null && context.mounted) {
             Navigator.pop(context, updatedWorkout);
           }
         },

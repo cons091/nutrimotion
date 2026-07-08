@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:nutrimotion/services/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,48 +24,28 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleLogin() async {
-    if (_formKey.currentState!.validate()) {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text.trim();
+    if (!_formKey.currentState!.validate()) return;
 
-      // Validación simple extra
-      if (!email.contains("@")) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Correo no válido"),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-      try {
-        final user = await _authService.loginUser(email, password);
+    try {
+      await _authService.loginUser(email, password);
+      if (!mounted) return;
 
-        if (user != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Login exitoso 🎉"),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pushReplacementNamed(context, "/home");
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Error: credenciales incorrectas"),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } on FirebaseAuthException catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error: ${e.message}"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Login exitoso 🎉"),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pushReplacementNamed(context, "/home");
+    } on AuthException catch (e) {
+      // Mensaje ya traducido por AuthService (credenciales, red, etc.).
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -80,23 +59,47 @@ class _LoginScreenState extends State<LoginScreen> {
             constraints: const BoxConstraints(
               maxWidth: 400,
             ), // ancho máximo para pantallas grandes
-            child: Card(
-              elevation: 8,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        "NutriMotion",
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Logo / marca
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.fitness_center,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  "NutriMotion",
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Entrena. Come bien. Progresa.",
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 28),
+
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
@@ -150,10 +153,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 50,
                         child: ElevatedButton(
                           onPressed: _handleLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
                           child: const Text("Iniciar Sesión"),
                         ),
                       ),
@@ -162,15 +161,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: () {
                           Navigator.pushNamed(context, "/register");
                         },
-                        child: const Text(
-                          "¿No tienes cuenta? Regístrate aquí",
-                          style: TextStyle(color: Colors.green),
-                        ),
+                        child: const Text("¿No tienes cuenta? Regístrate aquí"),
                       ),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ),

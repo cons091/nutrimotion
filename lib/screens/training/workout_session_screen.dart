@@ -72,54 +72,20 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
     }
   }
 
-  // Lógica para actualizar las repeticiones y validar (sin perder el foco)
+  // Sincroniza las repeticiones con lo escrito, sin mostrar mensajes por
+  // tecla: la validación con feedback se hace una sola vez en _finishWorkout.
+  // Se guarda incluso un valor inválido (0) para que esa validación final
+  // refleje exactamente lo que el usuario ve en pantalla.
   void _updateReps() {
-    // Solo actualiza si no estamos en el proceso de escribir (compruebas que el texto no esté vacío)
-    final text = _repsController.text;
-    if (text.isEmpty) return;
-
-    final parsed = int.tryParse(text);
-    if (parsed != null && parsed > 0) {
-      // Actualiza directamente el modelo de datos (series.reps)
-      widget.series.reps = parsed;
-      widget.onUpdate?.call(parsed, widget.series.weight);
-    } else if (parsed != null && parsed <= 0) {
-      // Validación: Muestra SnackBar pero no interrumpe la escritura inmediatamente.
-      // La validación final y obligatoria se realiza en _finishWorkout.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Las repeticiones deben ser mayores que 0."),
-          backgroundColor: Colors.redAccent,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
+    widget.series.reps = int.tryParse(_repsController.text.trim()) ?? 0;
+    widget.onUpdate?.call(widget.series.reps, widget.series.weight);
   }
 
-  // Lógica para actualizar el peso y validar (sin perder el foco)
+  // Igual que _updateReps, para el peso (acepta coma decimal).
   void _updateWeight() {
-    final text = _weightController.text;
-    if (text.isEmpty) {
-      widget.series.weight =
-          null; // o 0.0 según tu modelo. Dejo null por si el campo está vacío.
-      widget.onUpdate?.call(widget.series.reps, null);
-      return;
-    }
-
-    final parsed = double.tryParse(text);
-    if (parsed != null && parsed > 0) {
-      // Actualiza directamente el modelo de datos (series.weight)
-      widget.series.weight = parsed;
-      widget.onUpdate?.call(widget.series.reps, parsed);
-    } else if (parsed != null && parsed <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("El peso debe ser mayor que 0."),
-          backgroundColor: Colors.redAccent,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
+    final text = _weightController.text.trim().replaceAll(',', '.');
+    widget.series.weight = text.isEmpty ? null : double.tryParse(text);
+    widget.onUpdate?.call(widget.series.reps, widget.series.weight);
   }
 
   @override
@@ -152,12 +118,95 @@ class _SeriesEntryRowState extends State<SeriesEntryRow> {
             width: 60,
             child: TextField(
               controller: _weightController, // Controlador persistente
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(labelText: "Peso"),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+// ======================================================================
+// Diálogo para agregar un ejercicio manual a la sesión.
+// StatefulWidget para que los controllers se liberen en dispose
+// (antes se creaban dentro de showDialog y nunca se liberaban).
+// ======================================================================
+class _AddExerciseDialog extends StatefulWidget {
+  const _AddExerciseDialog();
+
+  @override
+  State<_AddExerciseDialog> createState() => _AddExerciseDialogState();
+}
+
+class _AddExerciseDialogState extends State<_AddExerciseDialog> {
+  final _nameCtrl = TextEditingController();
+  final _repsCtrl = TextEditingController();
+  final _weightCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _repsCtrl.dispose();
+    _weightCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _nameCtrl.text.trim();
+    final reps = int.tryParse(_repsCtrl.text.trim()) ?? 0;
+    final weight =
+        double.tryParse(_weightCtrl.text.trim().replaceAll(',', '.')) ?? 0;
+
+    if (name.isEmpty || reps <= 0 || weight <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Por favor ingresa valores válidos (mayores a 0)."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      Exercise(name: name, series: [SeriesEntry(reps: reps, weight: weight)]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("Agregar ejercicio"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(labelText: "Nombre"),
+          ),
+          TextField(
+            controller: _repsCtrl,
+            decoration: const InputDecoration(labelText: "Repeticiones"),
+            keyboardType: TextInputType.number,
+          ),
+          TextField(
+            controller: _weightCtrl,
+            decoration: const InputDecoration(labelText: "Peso (kg)"),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancelar"),
+        ),
+        ElevatedButton(onPressed: _submit, child: const Text("Agregar")),
+      ],
     );
   }
 }
@@ -203,72 +252,19 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
     setState(() => isRunning = false);
   }
 
-  void _addExercise() {
-    TextEditingController nameCtrl = TextEditingController();
-    TextEditingController repsCtrl = TextEditingController();
-    TextEditingController weightCtrl = TextEditingController();
-
-    showDialog(
+  void _addExercise() async {
+    // El diálogo es un StatefulWidget que gestiona (y libera) sus propios
+    // controllers; devuelve el Exercise creado o null si se cancela.
+    final exercise = await showDialog<Exercise>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Agregar ejercicio"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: "Nombre"),
-            ),
-            TextField(
-              controller: repsCtrl,
-              decoration: const InputDecoration(labelText: "Repeticiones"),
-              keyboardType: TextInputType.number,
-            ),
-            TextField(
-              controller: weightCtrl,
-              decoration: const InputDecoration(labelText: "Peso (kg)"),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancelar"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final name = nameCtrl.text.trim();
-              final reps = int.tryParse(repsCtrl.text) ?? 0;
-              final weight = double.tryParse(weightCtrl.text) ?? 0;
-
-              if (name.isEmpty || reps <= 0 || weight <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "Por favor ingresa valores válidos (mayores a 0).",
-                    ),
-                    backgroundColor: Colors.redAccent,
-                  ),
-                );
-                return; // No continúa si hay error
-              }
-
-              setState(() {
-                workout.exercises.add(
-                  Exercise(
-                    name: name,
-                    series: [SeriesEntry(reps: reps, weight: weight)],
-                  ),
-                );
-              });
-              Navigator.pop(context);
-            },
-            child: const Text("Agregar"),
-          ),
-        ],
-      ),
+      builder: (_) => const _AddExerciseDialog(),
     );
+
+    if (exercise == null || !mounted) return;
+
+    setState(() {
+      workout.exercises.add(exercise);
+    });
   }
 
   Future<void> _saveWorkoutToFirestore() async {
@@ -283,6 +279,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
       );
     } catch (e) {
       debugPrint("Error al guardar entrenamiento: $e");
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Error al guardar: $e")));
@@ -310,6 +307,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
     _stopTimer();
     await _saveWorkoutToFirestore();
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Entrenamiento guardado y finalizado 💪")),
     );
@@ -412,9 +410,6 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                     onPressed: _finishWorkout,
                     icon: const Icon(Icons.check),
                     label: const Text("Finalizar entrenamiento"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                    ),
                   ),
                 ),
               ],

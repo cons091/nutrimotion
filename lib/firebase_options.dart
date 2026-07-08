@@ -41,48 +41,44 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDkW4bafu2WrHbctmoiM3tjNRgdQH6jAb0',
-    appId: '1:380672168202:web:dff8f63bc7b4d2a7fd6af3',
-    messagingSenderId: '380672168202',
-    projectId: 'nutrimotion-e4184',
-    authDomain: 'nutrimotion-e4184.firebaseapp.com',
-    storageBucket: 'nutrimotion-e4184.firebasestorage.app',
-    measurementId: 'G-XRG34C9M54',
+    apiKey: 'AIzaSyDg4sM_SzRVx2jaGCgKXQ7v9eVe0Hl-I5g',
+    appId: '1:639293398436:web:ed03476893440eaf857531',
+    messagingSenderId: '639293398436',
+    projectId: 'nutrimotion-3a38c',
+    authDomain: 'nutrimotion-3a38c.firebaseapp.com',
+    storageBucket: 'nutrimotion-3a38c.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDIeXGy29UhFsi_fUkq0Y_sncLUdPo7SaM',
-    appId: '1:380672168202:android:3ef8aa58f4d306dffd6af3',
-    messagingSenderId: '380672168202',
-    projectId: 'nutrimotion-e4184',
-    storageBucket: 'nutrimotion-e4184.firebasestorage.app',
+    apiKey: 'AIzaSyAg9Xsrs76jue7TdzG17jgpbBcjH2aqS4c',
+    appId: '1:639293398436:android:dbde33636c463e08857531',
+    messagingSenderId: '639293398436',
+    projectId: 'nutrimotion-3a38c',
+    storageBucket: 'nutrimotion-3a38c.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCWpx8Kb0B7NAf222swIDuPj8ln9H70s7E',
-    appId: '1:380672168202:ios:e72021d7675084a2fd6af3',
-    messagingSenderId: '380672168202',
-    projectId: 'nutrimotion-e4184',
-    storageBucket: 'nutrimotion-e4184.firebasestorage.app',
+    apiKey: 'AIzaSyCrghkUexPs5v0gKkzJU7VUwkKEZh2dKuk',
+    appId: '1:639293398436:ios:d67a4723cb146d7b857531',
+    messagingSenderId: '639293398436',
+    projectId: 'nutrimotion-3a38c',
+    storageBucket: 'nutrimotion-3a38c.firebasestorage.app',
     iosBundleId: 'com.example.nutrimotion',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyCWpx8Kb0B7NAf222swIDuPj8ln9H70s7E',
-    appId: '1:380672168202:ios:e72021d7675084a2fd6af3',
-    messagingSenderId: '380672168202',
-    projectId: 'nutrimotion-e4184',
-    storageBucket: 'nutrimotion-e4184.firebasestorage.app',
+    apiKey: 'AIzaSyCrghkUexPs5v0gKkzJU7VUwkKEZh2dKuk',
+    appId: '1:639293398436:ios:d67a4723cb146d7b857531',
+    messagingSenderId: '639293398436',
+    projectId: 'nutrimotion-3a38c',
+    storageBucket: 'nutrimotion-3a38c.firebasestorage.app',
     iosBundleId: 'com.example.nutrimotion',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDkW4bafu2WrHbctmoiM3tjNRgdQH6jAb0',
-    appId: '1:380672168202:web:1f3cea9d36ff203ffd6af3',
-    messagingSenderId: '380672168202',
-    projectId: 'nutrimotion-e4184',
-    authDomain: 'nutrimotion-e4184.firebaseapp.com',
-    storageBucket: 'nutrimotion-e4184.firebasestorage.app',
-    measurementId: 'G-RMHHQS15KN',
+    apiKey: 'AIzaSyDg4sM_SzRVx2jaGCgKXQ7v9eVe0Hl-I5g',
+    appId: '1:639293398436:web:3a08dba4d572bfa2857531',
+    messagingSenderId: '639293398436',
+    projectId: 'nutrimotion-3a38c',
+    authDomain: 'nutrimotion-3a38c.firebaseapp.com',
+    storageBucket: 'nutrimotion-3a38c.firebasestorage.app',
   );
 }

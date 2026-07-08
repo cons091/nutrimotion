@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nutrimotion/models/workout_model.dart';
 import 'package:nutrimotion/services/workout_service.dart';
 import 'package:nutrimotion/screens/training/exercise_picker_screen.dart';
+import 'package:nutrimotion/utils/exercise_list.dart';
+import 'package:nutrimotion/widgets/series_config_dialog.dart';
 
 class WorkoutFormScreen extends StatefulWidget {
   final Workout? existingWorkout;
@@ -27,7 +29,11 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
       _titleController = TextEditingController(
         text: widget.existingWorkout!.title,
       );
-      _selectedDay = widget.existingWorkout!.day;
+      // Si la rutina guardada tiene un grupo antiguo que ya no existe en la
+      // lista canónica, caemos al primero para no romper el dropdown.
+      _selectedDay = ExerciseList.groups.contains(widget.existingWorkout!.day)
+          ? widget.existingWorkout!.day
+          : ExerciseList.groups.first;
       _exercises = List.from(widget.existingWorkout!.exercises);
     } else {
       _titleController = TextEditingController();
@@ -49,112 +55,21 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
       ),
     );
 
-    if (exerciseName == null) return;
+    if (exerciseName == null || !mounted) return;
 
-    List<TextEditingController> repsControllers = [TextEditingController()];
-    List<TextEditingController> weightControllers = [TextEditingController()];
-
-    showDialog(
+    // El diálogo gestiona (y libera) sus propios controllers; con
+    // requireWeight exige reps y peso > 0, como validaba antes esta pantalla.
+    final series = await showDialog<List<SeriesEntry>>(
       context: context,
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: Text("Configurar $exerciseName"),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text("Series"),
-                    Column(
-                      children: List.generate(repsControllers.length, (i) {
-                        return Row(
-                          children: [
-                            Text("Serie ${i + 1}: "),
-                            Expanded(
-                              child: TextField(
-                                controller: repsControllers[i],
-                                decoration: const InputDecoration(
-                                  labelText: "Reps",
-                                ),
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: weightControllers[i],
-                                decoration: const InputDecoration(
-                                  labelText: "Peso (kg)",
-                                ),
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                          ],
-                        );
-                      }),
-                    ),
-                    TextButton.icon(
-                      onPressed: () {
-                        setStateDialog(() {
-                          repsControllers.add(TextEditingController());
-                          weightControllers.add(TextEditingController());
-                        });
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text("Añadir serie"),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancelar"),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final series = <SeriesEntry>[];
-                    bool hasZero = false;
-
-                    for (var i = 0; i < repsControllers.length; i++) {
-                      final reps = int.tryParse(repsControllers[i].text) ?? 0;
-                      final weight =
-                          double.tryParse(weightControllers[i].text) ?? 0;
-                      if (reps <= 0 || weight <= 0) {
-                        hasZero = true;
-                        break;
-                      }
-                      series.add(SeriesEntry(reps: reps, weight: weight));
-                    }
-
-                    if (hasZero) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "❌ No se permiten valores 0 en series o peso.",
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    setState(() {
-                      _exercises.add(
-                        Exercise(name: exerciseName, series: series),
-                      );
-                    });
-
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Añadir"),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) =>
+          SeriesConfigDialog(exerciseName: exerciseName, requireWeight: true),
     );
+
+    if (series == null || !mounted) return;
+
+    setState(() {
+      _exercises.add(Exercise(name: exerciseName, series: series));
+    });
   }
 
   void _saveWorkout() {
@@ -219,19 +134,19 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
               const SizedBox(height: 20),
 
               DropdownButtonFormField<String>(
-                value: _selectedDay,
+                initialValue: _selectedDay,
                 decoration: const InputDecoration(
                   labelText: "Día / Grupo muscular",
                   prefixIcon: Icon(Icons.fitness_center),
                 ),
-                items: const [
-                  DropdownMenuItem(value: "Piernas", child: Text("Piernas")),
-                  DropdownMenuItem(value: "Espalda", child: Text("Espalda")),
-                  DropdownMenuItem(value: "Pecho", child: Text("Pecho")),
-                  DropdownMenuItem(value: "Hombros", child: Text("Hombros")),
-                  DropdownMenuItem(value: "Brazos", child: Text("Brazos")),
-                  DropdownMenuItem(value: "FullBody", child: Text("Full Body")),
-                ],
+                items: ExerciseList.groups
+                    .map(
+                      (g) => DropdownMenuItem(
+                        value: g,
+                        child: Text(ExerciseList.labelFor(g)),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (value) => setState(() => _selectedDay = value!),
               ),
               const SizedBox(height: 20),
@@ -386,7 +301,6 @@ class _WorkoutFormScreenState extends State<WorkoutFormScreen> {
               ElevatedButton(
                 onPressed: _saveWorkout,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
                   minimumSize: const Size(double.infinity, 50),
                 ),
                 child: Text(

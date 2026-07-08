@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// Reglas de seguridad de Cloud Firestore para NutriMotion.
+//
+// Principio: cada usuario solo puede leer y escribir SUS propios datos.
+// Estructura de datos de la app:
+//   users/{userId}                          → perfil (peso, altura, objetivo...)
+//   users/{userId}/workouts/{id}            → rutinas
+//   users/{userId}/training_sessions/{id}   → sesiones de entrenamiento
+//   users/{userId}/nutrition_entries/{id}   → diario de nutrición
+//
+// Desplegar con: firebase deploy --only firestore:rules
+// (o pegar en Firebase Console → Firestore Database → Reglas)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ¿El solicitante está autenticado y es el dueño de este userId?
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      // Documento de perfil: solo el dueño.
+      allow read, write: if isOwner(userId);
+
+      // Todas las subcolecciones del usuario (workouts, training_sessions,
+      // nutrition_entries y cualquier otra futura): solo el dueño.
+      match /{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Cualquier otra ruta: denegada explícitamente.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

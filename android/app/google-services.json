@@ -1,32 +1,13 @@
 {
   "project_info": {
-    "project_number": "380672168202",
-    "project_id": "nutrimotion-e4184",
-    "storage_bucket": "nutrimotion-e4184.firebasestorage.app"
+    "project_number": "639293398436",
+    "project_id": "nutrimotion-3a38c",
+    "storage_bucket": "nutrimotion-3a38c.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:380672168202:android:7c30a539973b78d4fd6af3",
-        "android_client_info": {
-          "package_name": "com.constanza.nutrimotion"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDIeXGy29UhFsi_fUkq0Y_sncLUdPo7SaM"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:380672168202:android:3ef8aa58f4d306dffd6af3",
+        "mobilesdk_app_id": "1:639293398436:android:dbde33636c463e08857531",
         "android_client_info": {
           "package_name": "com.example.nutrimotion"
         }
@@ -34,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDIeXGy29UhFsi_fUkq0Y_sncLUdPo7SaM"
+          "current_key": "AIzaSyAg9Xsrs76jue7TdzG17jgpbBcjH2aqS4c"
         }
       ],
       "services": {

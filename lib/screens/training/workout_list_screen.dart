@@ -99,6 +99,9 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
         children: [
           // 🟢 Entrenamiento vacío
           FloatingActionButton.extended(
+            // heroTag único: dos FABs en la misma pantalla comparten tag por
+            // defecto y rompen la animación de navegación (hero conflict).
+            heroTag: 'fab-entrenamiento-vacio',
             backgroundColor: Colors.orange,
             onPressed: () {
               Navigator.push(
@@ -116,7 +119,7 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
 
           // ➕ Crear rutina
           FloatingActionButton.extended(
-            backgroundColor: Colors.green,
+            heroTag: 'fab-nueva-rutina',
             onPressed: () async {
               final newWorkout = await Navigator.push<Workout>(
                 context,

@@ -10,7 +10,7 @@ class ExercisePickerScreen extends StatelessWidget {
     final exercises = ExerciseList.exercisesByGroup[group] ?? [];
 
     return Scaffold(
-      appBar: AppBar(title: Text("Ejercicios de $group")),
+      appBar: AppBar(title: Text("Ejercicios de ${ExerciseList.labelFor(group)}")),
       body: ListView.builder(
         itemCount: exercises.length,
         itemBuilder: (context, index) {

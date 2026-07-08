@@ -4,6 +4,8 @@ import 'package:nutrimotion/models/workout_model.dart';
 import 'package:nutrimotion/models/training_session_model.dart';
 import 'package:nutrimotion/services/training_session_service.dart';
 import 'package:nutrimotion/screens/training/exercise_picker_screen.dart';
+import 'package:nutrimotion/utils/exercise_list.dart';
+import 'package:nutrimotion/widgets/series_config_dialog.dart';
 
 class EmptyWorkoutScreen extends StatefulWidget {
   const EmptyWorkoutScreen({super.key});
@@ -13,15 +15,13 @@ class EmptyWorkoutScreen extends StatefulWidget {
 }
 
 class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
-  late DateTime _startTime;
   late Stopwatch _stopwatch;
   late final _timerStream = Stream.periodic(const Duration(seconds: 1));
-  List<Exercise> _exercises = [];
+  final List<Exercise> _exercises = [];
 
   @override
   void initState() {
     super.initState();
-    _startTime = DateTime.now();
     _stopwatch = Stopwatch()..start();
   }
 
@@ -37,27 +37,27 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
     final selectedGroup = await showDialog<String>(
       context: context,
       builder: (_) {
-        String? _selected = "Piernas"; // valor inicial
+        String? selected = "Piernas"; // valor inicial
 
         return AlertDialog(
           title: const Text("Selecciona un grupo muscular"),
           content: StatefulBuilder(
             builder: (context, setStateDialog) {
               return DropdownButtonFormField<String>(
-                value: _selected,
+                initialValue: selected,
                 decoration: const InputDecoration(
                   labelText: "Grupo muscular",
                   prefixIcon: Icon(Icons.fitness_center),
                 ),
-                items: const [
-                  DropdownMenuItem(value: "Piernas", child: Text("Piernas")),
-                  DropdownMenuItem(value: "Espalda", child: Text("Espalda")),
-                  DropdownMenuItem(value: "Pecho", child: Text("Pecho")),
-                  DropdownMenuItem(value: "Hombros", child: Text("Hombros")),
-                  DropdownMenuItem(value: "Brazos", child: Text("Brazos")),
-                  DropdownMenuItem(value: "FullBody", child: Text("Full Body")),
-                ],
-                onChanged: (value) => setStateDialog(() => _selected = value),
+                items: ExerciseList.groups
+                    .map(
+                      (g) => DropdownMenuItem(
+                        value: g,
+                        child: Text(ExerciseList.labelFor(g)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setStateDialog(() => selected = value),
               );
             },
           ),
@@ -67,7 +67,7 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
               child: const Text("Cancelar"),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context, _selected),
+              onPressed: () => Navigator.pop(context, selected),
               child: const Text("Siguiente"),
             ),
           ],
@@ -75,7 +75,7 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
       },
     );
 
-    if (selectedGroup == null) return;
+    if (selectedGroup == null || !mounted) return;
 
     // Paso 2: seleccionar ejercicio del grupo elegido
     final exerciseName = await Navigator.push<String>(
@@ -85,98 +85,21 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
       ),
     );
 
-    if (exerciseName == null) return;
+    if (exerciseName == null || !mounted) return;
 
-    // Paso 3: ingresar series, reps, peso
-    List<TextEditingController> repsControllers = [TextEditingController()];
-    List<TextEditingController> weightControllers = [TextEditingController()];
-
-    showDialog(
+    // Paso 3: ingresar series, reps, peso.
+    // El diálogo es un StatefulWidget que gestiona (y libera) sus propios
+    // controllers; devuelve la lista de series o null si se cancela.
+    final series = await showDialog<List<SeriesEntry>>(
       context: context,
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: Text("Configurar $exerciseName"),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text("Series"),
-                    Column(
-                      children: List.generate(repsControllers.length, (i) {
-                        return Row(
-                          children: [
-                            Text("Serie ${i + 1}: "),
-                            Expanded(
-                              child: TextField(
-                                controller: repsControllers[i],
-                                decoration: const InputDecoration(
-                                  labelText: "Reps",
-                                ),
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: weightControllers[i],
-                                decoration: const InputDecoration(
-                                  labelText: "Peso (kg)",
-                                ),
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                          ],
-                        );
-                      }),
-                    ),
-                    TextButton.icon(
-                      onPressed: () {
-                        setStateDialog(() {
-                          repsControllers.add(TextEditingController());
-                          weightControllers.add(TextEditingController());
-                        });
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text("Añadir serie"),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancelar"),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final series = <SeriesEntry>[];
-                    for (var i = 0; i < repsControllers.length; i++) {
-                      series.add(
-                        SeriesEntry(
-                          reps: int.tryParse(repsControllers[i].text) ?? 0,
-                          weight: double.tryParse(weightControllers[i].text),
-                        ),
-                      );
-                    }
-
-                    setState(() {
-                      _exercises.add(
-                        Exercise(name: exerciseName, series: series),
-                      );
-                    });
-
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Añadir"),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => SeriesConfigDialog(exerciseName: exerciseName),
     );
+
+    if (series == null || !mounted) return;
+
+    setState(() {
+      _exercises.add(Exercise(name: exerciseName, series: series));
+    });
   }
 
   Future<void> _finishWorkout() async {
@@ -195,6 +118,7 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
 
     await TrainingSessionService().addSession(session);
 
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("Entrenamiento guardado 🏋️")));
@@ -216,10 +140,10 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
               builder: (context, snapshot) {
                 return Text(
                   _formatDuration(_stopwatch.elapsed),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.bold,
-                    color: Colors.green,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 );
               },
@@ -262,7 +186,6 @@ class _EmptyWorkoutScreenState extends State<EmptyWorkoutScreen> {
               icon: const Icon(Icons.flag),
               label: const Text("Finalizar entrenamiento"),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
                 minimumSize: const Size(double.infinity, 50),
               ),
             ),

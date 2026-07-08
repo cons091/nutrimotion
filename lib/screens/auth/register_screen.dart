@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nutrimotion/services/auth_service.dart';
+import 'package:nutrimotion/utils/validators.dart';
+import 'package:nutrimotion/utils/user_options.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -32,34 +34,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _handleRegister() async {
-    if (_formKey.currentState!.validate()) {
-      final user = await _authService.registerUser(
+    if (!_formKey.currentState!.validate()) return;
+
+    // Parse seguro: los validadores ya garantizan que son números válidos,
+    // pero tryParse evita cualquier crash si el estado cambia.
+    final peso = Validators.parseDouble(_pesoController.text);
+    final altura = Validators.parseDouble(_alturaController.text);
+    final edad = Validators.parseInt(_edadController.text);
+    if (peso == null || altura == null || edad == null) return;
+
+    try {
+      await _authService.registerUser(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-        peso: double.parse(_pesoController.text.trim()),
-        altura: double.parse(_alturaController.text.trim()),
-        edad: int.parse(_edadController.text.trim()),
+        peso: peso,
+        altura: altura,
+        edad: edad,
         sexo: _sexo,
         actividad: _actividad,
         objetivo: _objetivo,
       );
 
-      if (user != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Registro exitoso 🎉"),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pushReplacementNamed(context, "/home");
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Error al registrarse"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Registro exitoso 🎉"),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pushReplacementNamed(context, "/home");
+    } on AuthException catch (e) {
+      // Mensaje ya traducido por AuthService (correo en uso, red, etc.).
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -79,8 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   labelText: "Correo electrónico",
                   prefixIcon: Icon(Icons.email),
                 ),
-                validator: (value) =>
-                    value!.contains("@") ? null : "Correo inválido",
+                validator: Validators.email,
               ),
               const SizedBox(height: 12),
 
@@ -91,8 +99,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   labelText: "Contraseña",
                   prefixIcon: Icon(Icons.lock),
                 ),
-                validator: (value) =>
-                    value!.length >= 6 ? null : "Mínimo 6 caracteres",
+                validator: Validators.password,
               ),
               const SizedBox(height: 12),
 
@@ -103,105 +110,65 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   labelText: "Edad",
                   prefixIcon: Icon(Icons.cake),
                 ),
-                validator: (value) =>
-                    value!.isNotEmpty ? null : "Ingrese su edad",
+                validator: Validators.edad,
               ),
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _sexo,
+                initialValue: _sexo,
                 decoration: const InputDecoration(
                   labelText: "Sexo",
                   prefixIcon: Icon(Icons.person),
                 ),
-                items: const [
-                  DropdownMenuItem(value: "Hombre", child: Text("Hombre")),
-                  DropdownMenuItem(value: "Mujer", child: Text("Mujer")),
-                ],
+                items: UserOptions.sexoItems(),
                 onChanged: (value) => setState(() => _sexo = value!),
               ),
               const SizedBox(height: 12),
 
               TextFormField(
                 controller: _pesoController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: "Peso (kg)",
                   prefixIcon: Icon(Icons.fitness_center),
                 ),
-                validator: (value) =>
-                    value!.isNotEmpty ? null : "Ingrese su peso",
+                validator: Validators.peso,
               ),
               const SizedBox(height: 12),
 
               TextFormField(
                 controller: _alturaController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: "Altura (cm)",
                   prefixIcon: Icon(Icons.height),
                 ),
-                validator: (value) =>
-                    value!.isNotEmpty ? null : "Ingrese su altura",
+                validator: Validators.altura,
               ),
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _actividad,
+                initialValue: _actividad,
                 decoration: const InputDecoration(
                   labelText: "Nivel de actividad",
                   prefixIcon: Icon(Icons.directions_run),
                 ),
-                items: const [
-                  DropdownMenuItem(
-                    value: "Sedentario",
-                    child: Text("Sedentario"),
-                  ),
-                  DropdownMenuItem(
-                    value: "Ligero",
-                    child: Text("Actividad ligera (1-3x/sem)"),
-                  ),
-                  DropdownMenuItem(
-                    value: "Moderado",
-                    child: Text("Actividad moderada (3-5x/sem)"),
-                  ),
-                  DropdownMenuItem(
-                    value: "Alto",
-                    child: Text("Actividad alta (6-7x/sem)"),
-                  ),
-                  DropdownMenuItem(
-                    value: "Muy alto",
-                    child: Text("Actividad muy alta (trabajo físico)"),
-                  ),
-                ],
+                items: UserOptions.items(UserOptions.actividades),
                 onChanged: (value) => setState(() => _actividad = value!),
               ),
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _objetivo,
+                initialValue: _objetivo,
                 decoration: const InputDecoration(
                   labelText: "Objetivo",
                   prefixIcon: Icon(Icons.flag),
                 ),
-                items: const [
-                  DropdownMenuItem(
-                    value: "Déficit",
-                    child: Text("Déficit calórico"),
-                  ),
-                  DropdownMenuItem(
-                    value: "Mantenimiento",
-                    child: Text("Mantenimiento"),
-                  ),
-                  DropdownMenuItem(
-                    value: "Recomposición",
-                    child: Text("Recomposición corporal"),
-                  ),
-                  DropdownMenuItem(
-                    value: "Superávit",
-                    child: Text("Superávit calórico"),
-                  ),
-                ],
+                items: UserOptions.items(UserOptions.objetivos),
                 onChanged: (value) => setState(() => _objetivo = value!),
               ),
               const SizedBox(height: 20),
@@ -210,7 +177,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 onPressed: _handleRegister,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: Colors.green,
                 ),
                 child: const Text("Registrarse"),
               ),

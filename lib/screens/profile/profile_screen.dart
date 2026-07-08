@@ -5,6 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:nutrimotion/models/user_model.dart';
+import 'package:nutrimotion/services/auth_service.dart';
+import 'package:nutrimotion/utils/validators.dart';
+import 'package:nutrimotion/utils/user_options.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,15 +23,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final _pesoController = TextEditingController();
   final _alturaController = TextEditingController();
+  final _edadController = TextEditingController();
+  String? _sexo;
+  String? _actividad;
   String? _objetivo;
   String? _photoUrl;
 
   final picker = ImagePicker();
+  final _authService = AuthService();
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    _pesoController.dispose();
+    _alturaController.dispose();
+    _edadController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -40,13 +55,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
         .doc(currentUser.uid)
         .get();
 
+    if (!mounted) return;
     if (doc.exists) {
       final data = doc.data(); // obtiene Map<String, dynamic>?
       setState(() {
         _userData = AppUser.fromMap(data!);
         _pesoController.text = _userData?.peso?.toString() ?? '';
         _alturaController.text = _userData?.altura?.toString() ?? '';
-        _objetivo = _userData?.objetivo ?? "Mantenimiento";
+        _edadController.text = _userData?.edad?.toString() ?? '';
+
+        // validOrNull evita que un valor antiguo/desconocido en Firestore
+        // rompa los dropdowns (su initialValue debe existir en los items).
+        _sexo = UserOptions.validOrNull(_userData?.sexo, UserOptions.sexos);
+        _actividad = UserOptions.validOrNull(
+          _userData?.actividad,
+          UserOptions.actividades.keys,
+        );
+        _objetivo =
+            UserOptions.validOrNull(
+              _userData?.objetivo,
+              UserOptions.objetivos.keys,
+            ) ??
+            "Mantenimiento";
 
         // Acceso seguro a photoUrl
         if (data.containsKey("photoUrl")) {
@@ -78,6 +108,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .doc(currentUser.uid)
           .update({"photoUrl": downloadUrl});
 
+      if (!mounted) return;
       setState(() {
         _photoUrl = downloadUrl;
         _isLoading = false;
@@ -90,6 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -104,16 +136,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
+    // Validar antes de guardar: antes un texto inválido guardaba null y
+    // borraba el dato bueno que ya existía en Firestore.
+    final error =
+        Validators.peso(_pesoController.text) ??
+        Validators.altura(_alturaController.text) ??
+        Validators.edad(_edadController.text);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     try {
       await FirebaseFirestore.instance
           .collection("users")
           .doc(currentUser.uid)
           .update({
-            "peso": double.tryParse(_pesoController.text),
-            "altura": double.tryParse(_alturaController.text),
+            "peso": Validators.parseDouble(_pesoController.text),
+            "altura": Validators.parseDouble(_alturaController.text),
+            "edad": Validators.parseInt(_edadController.text),
+            "sexo": _sexo,
+            "actividad": _actividad,
             "objetivo": _objetivo,
           });
 
+      if (!mounted) return;
       setState(() {
         _isEditing = false;
       });
@@ -127,6 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       _loadUserData();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Error al actualizar los datos"),
@@ -136,6 +186,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _signOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Cerrar sesión"),
+        content: const Text("¿Seguro que quieres cerrar sesión?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Cerrar sesión"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    await _authService.signOut();
+    if (!mounted) return;
+
+    // Limpia todo el stack de navegación: no debe poder volverse atrás
+    // a pantallas con datos del usuario anterior.
+    Navigator.of(context).pushNamedAndRemoveUntil("/login", (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_userData == null) {
@@ -143,13 +226,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text("Mi Perfil"),
-        backgroundColor: Colors.green,
         actions: [
           IconButton(
             icon: Icon(_isEditing ? Icons.save : Icons.edit),
+            tooltip: _isEditing ? "Guardar cambios" : "Editar perfil",
             onPressed: () {
               if (_isEditing) {
                 _saveChanges();
@@ -160,6 +242,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               }
             },
           ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: "Cerrar sesión",
+            onPressed: _signOut,
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -169,15 +256,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // FOTO DE PERFIL
             Stack(
               children: [
-                CircleAvatar(
-                  radius: 60,
-                  backgroundColor: Colors.green[100],
-                  backgroundImage: _photoUrl != null
-                      ? NetworkImage(_photoUrl!)
-                      : null,
-                  child: _photoUrl == null
-                      ? const Icon(Icons.person, size: 70, color: Colors.white)
-                      : null,
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 2.5,
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    radius: 56,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
+                    backgroundImage: _photoUrl != null
+                        ? NetworkImage(_photoUrl!)
+                        : null,
+                    child: _photoUrl == null
+                        ? Icon(
+                            Icons.person,
+                            size: 64,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onPrimaryContainer,
+                          )
+                        : null,
+                  ),
                 ),
                 Positioned(
                   bottom: 0,
@@ -185,9 +290,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: GestureDetector(
                     onTap: _pickImage,
                     child: Container(
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.green,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                       padding: const EdgeInsets.all(6),
                       child: const Icon(
@@ -205,10 +310,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // TARJETA DE INFORMACIÓN
             Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              elevation: 3,
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -244,35 +345,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                     const Divider(),
                     _isEditing
+                        ? _buildEditableField(
+                            controller: _edadController,
+                            label: "Edad",
+                            icon: Icons.cake,
+                          )
+                        : _buildInfoRow(
+                            "Edad",
+                            "${_userData!.edad ?? '-'} años",
+                            icon: Icons.cake,
+                          ),
+                    const Divider(),
+                    _isEditing
                         ? DropdownButtonFormField<String>(
-                            value: _objetivo,
+                            initialValue: _sexo,
+                            decoration: const InputDecoration(
+                              labelText: "Sexo",
+                              prefixIcon: Icon(Icons.person),
+                            ),
+                            items: UserOptions.sexoItems(),
+                            onChanged: (value) {
+                              setState(() => _sexo = value);
+                            },
+                          )
+                        : _buildInfoRow(
+                            "Sexo",
+                            _userData!.sexo ?? '-',
+                            icon: Icons.person,
+                          ),
+                    const Divider(),
+                    _isEditing
+                        ? DropdownButtonFormField<String>(
+                            initialValue: _actividad,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: "Nivel de actividad",
+                              prefixIcon: Icon(Icons.directions_run),
+                            ),
+                            items: UserOptions.items(UserOptions.actividades),
+                            onChanged: (value) {
+                              setState(() => _actividad = value);
+                            },
+                          )
+                        : _buildInfoRow(
+                            "Actividad",
+                            UserOptions.actividades[_userData!.actividad] ??
+                                _userData!.actividad ??
+                                '-',
+                            icon: Icons.directions_run,
+                          ),
+                    const Divider(),
+                    _isEditing
+                        ? DropdownButtonFormField<String>(
+                            initialValue: _objetivo,
+                            isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: "Objetivo",
                               prefixIcon: Icon(Icons.flag),
                             ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: "Déficit",
-                                child: Text("Déficit calórico"),
-                              ),
-                              DropdownMenuItem(
-                                value: "Mantenimiento",
-                                child: Text("Mantenimiento"),
-                              ),
-                              DropdownMenuItem(
-                                value: "Superávit",
-                                child: Text("Superávit calórico"),
-                              ),
-                            ],
+                            items: UserOptions.items(UserOptions.objetivos),
                             onChanged: (value) {
-                              setState(() {
-                                _objetivo = value;
-                              });
+                              setState(() => _objetivo = value);
                             },
                           )
                         : _buildInfoRow(
                             "Objetivo",
-                            _userData!.objetivo ?? '-',
+                            UserOptions.objetivos[_userData!.objetivo] ??
+                                _userData!.objetivo ??
+                                '-',
                             icon: Icons.flag,
                           ),
                   ],
@@ -282,8 +422,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 30),
 
-            if (_isLoading)
-              const CircularProgressIndicator(color: Colors.green),
+            if (_isLoading) const CircularProgressIndicator(),
           ],
         ),
       ),
@@ -293,7 +432,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildInfoRow(String label, String value, {IconData? icon}) {
     return Row(
       children: [
-        Icon(icon, color: Colors.green),
+        Icon(icon, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 10),
         Text("$label:", style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(width: 8),
@@ -316,7 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return TextField(
       controller: controller,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
-      keyboardType: TextInputType.number,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
     );
   }
 }
